@@ -1,7 +1,4 @@
-# Tauri + React + Typescript
+# APP for ppl for who are pepare for competative example.
+->This is vibe coded for people for who are pepare for competative exams. 
+->The app is experimental.
 
-This template should help get you started developing with Tauri, React and Typescript in Vite.
-
-## Recommended IDE Setup
-
-- [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
