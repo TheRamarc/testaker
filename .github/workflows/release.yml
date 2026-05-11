@@ -1,0 +1,53 @@
+name: "Publish Release"
+
+on:
+  push:
+    tags:
+      - 'v*' # Triggers when you push a tag starting with 'v'
+
+jobs:
+  publish-tauri:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: "macos-latest" # For macOS (.dmg)
+            args: "--target universal-apple-darwin"
+          - platform: "ubuntu-22.04" # For Linux (.deb)
+            args: ""
+          - platform: "windows-latest" # For Windows (.msi)
+            args: ""
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: install dependencies (ubuntu only)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libjavascriptcoregtk-4.0-dev build-essential curl wget libssl-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - name: install frontend dependencies
+        run: pnpm install # Change to npm or yarn if needed
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: v__VERSION__ # This matches the version in package.json
+          releaseName: "App Release v__VERSION__"
+          releaseBody: "See the assets below to download the latest version."
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}
