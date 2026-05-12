@@ -1,9 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { getAllPdfTests, getPdfTestById, PdfTest, savePdfTestAttempt } from '../lib/db';
+import { getPdfTestById, PdfTest, savePdfTestAttempt } from '../lib/db';
 import { readFile } from '@tauri-apps/plugin-fs';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 
-export const PdfTestMode: React.FC = () => {
-  const [tests, setTests] = useState<PdfTest[]>([]);
+interface PdfTestModeProps {
+  testId: number;
+  onExit?: () => void;
+}
+
+export const PdfTestMode: React.FC<PdfTestModeProps> = ({ testId, onExit }) => {
   const [selectedTest, setSelectedTest] = useState<PdfTest | null>(null);
   const [userAnswers, setUserAnswers] = useState<Record<number, string>>({});
   const [showResult, setShowResult] = useState(false);
@@ -17,8 +22,21 @@ export const PdfTestMode: React.FC = () => {
   const [completedSeconds, setCompletedSeconds] = useState<number | null>(null);
 
   useEffect(() => {
-    fetchTests();
-  }, []);
+    handleStartTest(testId);
+  }, [testId]);
+
+  useEffect(() => {
+    const appWindow = getCurrentWindow();
+    if (selectedTest) {
+      appWindow.setFullscreen(true).catch(console.error);
+    } else {
+      appWindow.setFullscreen(false).catch(console.error);
+    }
+    
+    return () => {
+      appWindow.setFullscreen(false).catch(console.error);
+    };
+  }, [selectedTest]);
 
   useEffect(() => {
     return () => {
@@ -39,11 +57,6 @@ export const PdfTestMode: React.FC = () => {
 
     return () => window.clearInterval(timerId);
   }, [startedAt, showResult]);
-
-  const fetchTests = async () => {
-    const allTests = await getAllPdfTests();
-    setTests(allTests);
-  };
 
   const renderPdfWithPdfJs = async (pdfPath: string) => {
     const [{ GlobalWorkerOptions, getDocument }, { default: pdfWorkerSrc }] = await Promise.all([
@@ -148,12 +161,6 @@ export const PdfTestMode: React.FC = () => {
     return `${minutes}:${String(seconds).padStart(2, '0')}`;
   };
 
-  const formatAttemptDate = (value: string) => {
-    return new Intl.DateTimeFormat(undefined, {
-      dateStyle: 'medium',
-      timeStyle: 'short'
-    }).format(new Date(value));
-  };
 
   const startAnswerSheetResize = (event: React.MouseEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -197,7 +204,6 @@ export const PdfTestMode: React.FC = () => {
           durationSeconds: finalSeconds,
           attemptedAt: new Date().toISOString()
         });
-        await fetchTests();
       } catch (error) {
         console.error('Failed to save PDF test attempt:', error);
       }
@@ -206,42 +212,16 @@ export const PdfTestMode: React.FC = () => {
 
   if (!selectedTest) {
     return (
-      <div className="w-full max-w-2xl mx-auto p-6 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-xl">
-        <h2 className="text-2xl font-black mb-8 text-white tracking-tight text-center">Available PDF Tests</h2>
-        {tests.length === 0 ? (
-          <p className="text-center text-zinc-500 py-12">No PDF tests registered yet. Go to "Add PDF Test" to register one.</p>
-        ) : (
-          <div className="grid grid-cols-1 gap-4">
-            {tests.map(t => (
-              <button
-                key={t.id}
-                onClick={() => t.id && handleStartTest(t.id)}
-                className="p-6 text-left bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 rounded-2xl transition-all group flex justify-between items-center"
-              >
-                <div>
-                  <h3 className="text-white font-bold text-lg group-hover:text-blue-400 transition-colors">{t.name}</h3>
-                  <p className="text-zinc-500 text-xs mt-1">Topic ID: {t.topicId}</p>
-                  {t.lastAttempt ? (
-                    <p className="text-zinc-400 text-xs mt-3">
-                      Last: {formatAttemptDate(t.lastAttempt.attemptedAt)} • {t.lastAttempt.score}/{t.lastAttempt.totalQuestions} • {formatDuration(t.lastAttempt.durationSeconds)}
-                    </p>
-                  ) : (
-                    <p className="text-zinc-600 text-xs mt-3">No attempts yet</p>
-                  )}
-                </div>
-                <span className="text-zinc-700 group-hover:text-white transition-colors text-xl font-black">
-                  {loadingPages ? 'LOADING...' : 'START →'}
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
+      <div className="fixed inset-0 bg-black flex items-center justify-center z-50">
+        <div className="text-zinc-500 font-black animate-pulse tracking-widest uppercase">
+          {loadingPages ? 'Loading Test...' : 'Failed to load test'}
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="fixed inset-0 top-[180px] bg-black flex overflow-hidden border-t border-zinc-800">
+    <div className="fixed inset-0 bg-black flex overflow-hidden border-t border-zinc-800 z-50">
       {/* Left: PDF Viewer */}
       <div className="relative flex-1 min-w-0 bg-zinc-950 border-r border-zinc-800 overflow-hidden">
         <div className="absolute top-4 left-4 z-20 bg-black/60 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 text-white text-xs font-black">
@@ -329,8 +309,11 @@ export const PdfTestMode: React.FC = () => {
             <p className="text-zinc-500 text-[10px] font-black mt-1">Time {formatDuration(completedSeconds ?? elapsedSeconds)}</p>
           </div>
           <button 
-            onClick={() => setSelectedTest(null)}
-            className="text-zinc-500 hover:text-white text-xs font-bold"
+            onClick={() => {
+              setSelectedTest(null);
+              if (onExit) onExit();
+            }}
+            className="text-white bg-red-600 hover:bg-red-500 px-3 py-1.5 rounded-lg text-xs font-black transition-all shadow-[0_0_15px_rgba(220,38,38,0.3)] border border-red-500"
           >
             EXIT TEST
           </button>
@@ -392,7 +375,10 @@ export const PdfTestMode: React.FC = () => {
               <h2 className="text-4xl font-black text-white">{score} <span className="text-zinc-600 text-lg">/ {selectedTest.answers.length}</span></h2>
               <p className="mt-2 text-zinc-500 text-xs font-black uppercase">Time Taken: {formatDuration(completedSeconds ?? elapsedSeconds)}</p>
               <button
-                onClick={() => setSelectedTest(null)}
+                onClick={() => {
+                  setSelectedTest(null);
+                  if (onExit) onExit();
+                }}
                 className="mt-6 w-full py-3 bg-zinc-800 text-white font-bold rounded-xl border border-zinc-700"
               >
                 BACK TO LIST

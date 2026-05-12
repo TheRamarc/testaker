@@ -55,6 +55,17 @@ export interface PdfTest {
   lastAttempt?: PdfTestAttempt | null;
 }
 
+export interface PdfMaterial {
+  id?: number;
+  name: string;
+  pdfPath: string;
+  sourcePdfPath?: string | null;
+  topicId: number | null;
+  created_at?: string;
+  last_opened_at?: string | null;
+  total_study_seconds?: number;
+}
+
 export async function createTopic(name: string) {
   const db = await getDb();
   const result = await db.execute('INSERT INTO topics (name) VALUES ($1)', [name]);
@@ -253,4 +264,189 @@ export async function savePdfTestAttempt(attempt: Omit<PdfTestAttempt, 'id'>) {
     [attempt.pdfTestId, attempt.score, attempt.totalQuestions, attempt.durationSeconds, attempt.attemptedAt]
   );
   return result.lastInsertId;
+}
+
+export async function savePdfMaterial(material: PdfMaterial) {
+  const db = await getDb();
+  try {
+    const result = await db.execute(
+      'INSERT INTO pdf_materials (name, pdf_path, source_pdf_path, topic_id) VALUES ($1, $2, $3, $4)',
+      [material.name, material.pdfPath, material.sourcePdfPath ?? null, material.topicId]
+    );
+    return result.lastInsertId;
+  } catch (error) {
+    console.error('Failed to save PDF material:', error);
+    throw error;
+  }
+}
+
+export async function getPdfMaterialsByTopic(topicId: number): Promise<PdfMaterial[]> {
+  const db = await getDb();
+  const materials = await db.select<any[]>('SELECT * FROM pdf_materials WHERE topic_id = $1 ORDER BY created_at DESC', [topicId]);
+  return materials.map(m => ({
+    id: m.id,
+    name: m.name,
+    pdfPath: m.pdf_path,
+    sourcePdfPath: m.source_pdf_path,
+    topicId: m.topic_id,
+    created_at: m.created_at,
+    last_opened_at: m.last_opened_at,
+    total_study_seconds: m.total_study_seconds ?? 0
+  }));
+}
+
+export async function getAllPdfMaterials(): Promise<PdfMaterial[]> {
+  const db = await getDb();
+  const materials = await db.select<any[]>('SELECT * FROM pdf_materials ORDER BY created_at DESC');
+  return materials.map(m => ({
+    id: m.id,
+    name: m.name,
+    pdfPath: m.pdf_path,
+    sourcePdfPath: m.source_pdf_path,
+    topicId: m.topic_id,
+    created_at: m.created_at,
+    last_opened_at: m.last_opened_at,
+    total_study_seconds: m.total_study_seconds ?? 0
+  }));
+}
+
+export async function getPdfTestsByTopic(topicId: number): Promise<PdfTest[]> {
+  const db = await getDb();
+  const tests = await db.select<any[]>(`
+    SELECT
+      t.*,
+      a.id AS last_attempt_id,
+      a.score AS last_score,
+      a.total_questions AS last_total_questions,
+      a.duration_seconds AS last_duration_seconds,
+      a.attempted_at AS last_attempted_at
+    FROM pdf_tests t
+    LEFT JOIN pdf_test_attempts a ON a.id = (
+      SELECT id
+      FROM pdf_test_attempts
+      WHERE pdf_test_id = t.id
+      ORDER BY attempted_at DESC, id DESC
+      LIMIT 1
+    )
+    WHERE t.topic_id = $1
+    ORDER BY t.created_at DESC
+  `, [topicId]);
+
+  return tests.map(t => ({
+    ...t,
+    pdfPath: t.pdf_path,
+    sourcePdfPath: t.source_pdf_path,
+    topicId: t.topic_id,
+    answers: [],
+    lastAttempt: t.last_attempt_id ? {
+      id: t.last_attempt_id,
+      pdfTestId: t.id,
+      score: t.last_score,
+      totalQuestions: t.last_total_questions,
+      durationSeconds: t.last_duration_seconds,
+      attemptedAt: t.last_attempted_at
+    } : null
+  }));
+}
+
+export async function markPdfMaterialOpened(id: number) {
+  const db = await getDb();
+  const now = new Date().toISOString();
+  await db.execute('UPDATE pdf_materials SET last_opened_at = $1 WHERE id = $2', [now, id]);
+}
+
+export interface RecentTestAttempt extends PdfTestAttempt {
+  testName: string;
+}
+
+export async function getRecentTestAttempts(limit: number = 5): Promise<RecentTestAttempt[]> {
+  const db = await getDb();
+  const attempts = await db.select<any[]>(`
+    SELECT a.*, t.name as test_name
+    FROM pdf_test_attempts a
+    JOIN pdf_tests t ON a.pdf_test_id = t.id
+    ORDER BY a.attempted_at DESC, a.id DESC
+    LIMIT $1
+  `, [limit]);
+
+  return attempts.map(a => ({
+    id: a.id,
+    pdfTestId: a.pdf_test_id,
+    score: a.score,
+    totalQuestions: a.total_questions,
+    durationSeconds: a.duration_seconds,
+    attemptedAt: a.attempted_at,
+    testName: a.test_name
+  }));
+}
+
+export async function getRecentMaterials(limit: number = 5): Promise<PdfMaterial[]> {
+  const db = await getDb();
+  const materials = await db.select<any[]>(`
+    SELECT * FROM pdf_materials 
+    WHERE last_opened_at IS NOT NULL 
+    ORDER BY last_opened_at DESC 
+    LIMIT $1
+  `, [limit]);
+
+  return materials.map(m => ({
+    id: m.id,
+    name: m.name,
+    pdfPath: m.pdf_path,
+    sourcePdfPath: m.source_pdf_path,
+    topicId: m.topic_id,
+    created_at: m.created_at,
+    last_opened_at: m.last_opened_at,
+    total_study_seconds: m.total_study_seconds ?? 0
+  }));
+}
+
+export async function addMaterialStudyTime(id: number, seconds: number) {
+  const db = await getDb();
+  await db.execute(
+    'UPDATE pdf_materials SET total_study_seconds = COALESCE(total_study_seconds, 0) + $1 WHERE id = $2',
+    [seconds, id]
+  );
+}
+
+export async function deletePdfMaterial(id: number) {
+  const db = await getDb();
+  await db.execute('DELETE FROM pdf_materials WHERE id = $1', [id]);
+}
+
+export async function deletePdfTest(id: number) {
+  const db = await getDb();
+  await db.execute('DELETE FROM pdf_answers WHERE pdf_test_id = $1', [id]);
+  await db.execute('DELETE FROM pdf_test_attempts WHERE pdf_test_id = $1', [id]);
+  await db.execute('DELETE FROM pdf_tests WHERE id = $1', [id]);
+}
+
+export async function deleteTopic(id: number) {
+  const db = await getDb();
+  // Delete all tests under this topic (with their answers and attempts)
+  const tests = await db.select<any[]>('SELECT id FROM pdf_tests WHERE topic_id = $1', [id]);
+  for (const t of tests) {
+    await db.execute('DELETE FROM pdf_answers WHERE pdf_test_id = $1', [t.id]);
+    await db.execute('DELETE FROM pdf_test_attempts WHERE pdf_test_id = $1', [t.id]);
+    await db.execute('DELETE FROM pdf_tests WHERE id = $1', [t.id]);
+  }
+  // Delete all materials under this topic
+  await db.execute('DELETE FROM pdf_materials WHERE topic_id = $1', [id]);
+  // Delete the topic itself
+  await db.execute('DELETE FROM topics WHERE id = $1', [id]);
+}
+
+export async function updateTopicName(id: number, name: string) {
+  const db = await getDb();
+  await db.execute('UPDATE topics SET name = $1 WHERE id = $2', [name, id]);
+}
+
+export async function updatePdfMaterialName(id: number, name: string) {
+  const db = await getDb();
+  await db.execute('UPDATE pdf_materials SET name = $1 WHERE id = $2', [name, id]);
+}
+
+export async function updatePdfTestName(id: number, name: string) {
+  const db = await getDb();
+  await db.execute('UPDATE pdf_tests SET name = $1 WHERE id = $2', [name, id]);
 }

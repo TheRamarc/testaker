@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { pickAndSavePdf } from '../lib/storage';
-import { getAllTopics, createTopic, Topic, savePdfTest, PdfAnswer } from '../lib/db';
+import { getAllTopics, createTopic, Topic, savePdfTest, savePdfMaterial, PdfAnswer } from '../lib/db';
 
 export const PdfTestBuilder: React.FC = () => {
+  const [uploadMode, setUploadMode] = useState<'test' | 'material'>('test');
   const [name, setName] = useState('');
   const [pdfPath, setPdfPath] = useState<string | null>(null);
   const [topicId, setTopicId] = useState<number | null>(null);
@@ -63,30 +64,42 @@ export const PdfTestBuilder: React.FC = () => {
     }
 
     const registeredAnswers: PdfAnswer[] = [];
-    for (let i = 1; i <= numQuestions; i++) {
-      if (!answers[i]) {
-        setMessage({ type: 'error', text: `Please provide an answer for Question ${i}` });
-        return;
+    if (uploadMode === 'test') {
+      for (let i = 1; i <= numQuestions; i++) {
+        if (!answers[i]) {
+          setMessage({ type: 'error', text: `Please provide an answer for Question ${i}` });
+          return;
+        }
+        registeredAnswers.push({
+          questionNumber: i,
+          correctOption: answers[i]
+        });
       }
-      registeredAnswers.push({
-        questionNumber: i,
-        correctOption: answers[i]
-      });
     }
 
     setLoading(true);
-    setMessage({ type: 'info', text: 'Registering PDF for PDF.js rendering...' });
+    setMessage({ type: 'info', text: 'Processing...' });
     
     try {
-      await savePdfTest({
-        name,
-        pdfPath: '',
-        sourcePdfPath: pdfPath,
-        topicId,
-        answers: registeredAnswers
-      });
+      if (uploadMode === 'test') {
+        await savePdfTest({
+          name,
+          pdfPath: '',
+          sourcePdfPath: pdfPath,
+          topicId,
+          answers: registeredAnswers
+        });
+        setMessage({ type: 'success', text: 'PDF Test registered successfully!' });
+      } else {
+        await savePdfMaterial({
+          name,
+          pdfPath: '',
+          sourcePdfPath: pdfPath,
+          topicId
+        });
+        setMessage({ type: 'success', text: 'Study Material registered successfully!' });
+      }
 
-      setMessage({ type: 'success', text: 'PDF Test registered for PDF.js rendering!' });
       setName('');
       setPdfPath(null);
       setAnswers({});
@@ -100,7 +113,23 @@ export const PdfTestBuilder: React.FC = () => {
 
   return (
     <div className="w-full max-w-4xl mx-auto p-6 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-xl">
-      <h2 className="text-2xl font-black mb-8 text-white tracking-tight">Register PDF Test</h2>
+      <div className="flex justify-between items-center mb-8">
+        <h2 className="text-2xl font-black text-white tracking-tight">Upload PDF Document</h2>
+        <div className="flex bg-zinc-950 rounded-xl p-1 border border-zinc-800">
+          <button
+            onClick={() => setUploadMode('test')}
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${uploadMode === 'test' ? 'bg-blue-600 text-white shadow-lg' : 'text-zinc-500 hover:text-white'}`}
+          >
+            Create PDF Test
+          </button>
+          <button
+            onClick={() => setUploadMode('material')}
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${uploadMode === 'material' ? 'bg-blue-600 text-white shadow-lg' : 'text-zinc-500 hover:text-white'}`}
+          >
+            Create Study Material
+          </button>
+        </div>
+      </div>
       
       <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-12">
         <div className="space-y-6">
@@ -160,17 +189,19 @@ export const PdfTestBuilder: React.FC = () => {
             {pdfPath && <p className="mt-2 text-[10px] text-zinc-600 truncate">{pdfPath}</p>}
           </div>
 
-          <div>
-            <label className="block text-xs font-black text-zinc-500 uppercase tracking-widest mb-2">Number of Questions</label>
-            <input
-              type="number"
-              value={numQuestions}
-              onChange={(e) => setNumQuestions(Number(e.target.value))}
-              className="w-full p-3 bg-zinc-950 border border-zinc-800 rounded-xl text-white outline-none"
-              min="1"
-              max="200"
-            />
-          </div>
+          {uploadMode === 'test' && (
+            <div>
+              <label className="block text-xs font-black text-zinc-500 uppercase tracking-widest mb-2">Number of Questions</label>
+              <input
+                type="number"
+                value={numQuestions}
+                onChange={(e) => setNumQuestions(Number(e.target.value))}
+                className="w-full p-3 bg-zinc-950 border border-zinc-800 rounded-xl text-white outline-none"
+                min="1"
+                max="200"
+              />
+            </div>
+          )}
 
           {message && (
             <div className={`p-4 rounded-xl text-sm font-bold ${
@@ -187,11 +218,12 @@ export const PdfTestBuilder: React.FC = () => {
             disabled={loading}
             className="w-full py-4 bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-800 text-white font-black rounded-xl transition-all shadow-xl shadow-blue-500/10 uppercase tracking-widest"
           >
-            {loading ? 'Processing...' : 'Register Test'}
+            {loading ? 'Processing...' : (uploadMode === 'test' ? 'Register Test' : 'Save Material')}
           </button>
         </div>
 
-        <div className="space-y-4">
+        {uploadMode === 'test' && (
+          <div className="space-y-4">
           <label className="block text-xs font-black text-zinc-500 uppercase tracking-widest mb-2">Register Answer Key</label>
           <div className="bg-zinc-950 border border-zinc-800 rounded-2xl p-6 h-[500px] overflow-y-auto space-y-4">
             {Array.from({ length: numQuestions }).map((_, idx) => {
@@ -216,6 +248,7 @@ export const PdfTestBuilder: React.FC = () => {
             })}
           </div>
         </div>
+        )}
       </form>
     </div>
   );

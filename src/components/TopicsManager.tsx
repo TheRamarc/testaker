@@ -1,0 +1,542 @@
+import React, { useState, useEffect } from 'react';
+import { getAllTopics, Topic, getPdfMaterialsByTopic, getPdfTestsByTopic, PdfMaterial, markPdfMaterialOpened, getAllPdfMaterials, getAllPdfTests, deletePdfMaterial, deletePdfTest, deleteTopic, updateTopicName, updatePdfMaterialName, updatePdfTestName } from '../lib/db';
+import { PdfTest } from '../lib/db';
+import { ConfirmDialog } from './ConfirmDialog';
+import { EditNameDialog } from './EditNameDialog';
+interface TopicsManagerProps {
+  onOpenMaterial?: (mat: PdfMaterial) => void;
+  onOpenTest?: (testId: number) => void;
+}
+
+export const TopicsManager: React.FC<TopicsManagerProps> = ({ onOpenMaterial, onOpenTest }) => {
+  const [topics, setTopics] = useState<Topic[]>([]);
+  const [selectedTopic, setSelectedTopic] = useState<Topic | null>(null);
+  
+  const [materials, setMaterials] = useState<PdfMaterial[]>([]);
+  const [tests, setTests] = useState<PdfTest[]>([]);
+  
+  const [loading, setLoading] = useState(false);
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [allMaterials, setAllMaterials] = useState<PdfMaterial[]>([]);
+  const [allTests, setAllTests] = useState<PdfTest[]>([]);
+
+  // Confirm-dialog state
+  type PendingDelete =
+    | { type: 'topic'; id: number; name: string }
+    | { type: 'material'; id: number; name: string }
+    | { type: 'test'; id: number; name: string }
+    | null;
+  const [pendingDelete, setPendingDelete] = useState<PendingDelete>(null);
+
+  // Edit-dialog state
+  type PendingEdit =
+    | { type: 'topic'; id: number; name: string }
+    | { type: 'material'; id: number; name: string }
+    | { type: 'test'; id: number; name: string }
+    | null;
+  const [pendingEdit, setPendingEdit] = useState<PendingEdit>(null);
+
+  useEffect(() => {
+    fetchTopics();
+    fetchAllData();
+  }, []);
+
+  const fetchAllData = async () => {
+    try {
+      const [mats, tsts] = await Promise.all([
+        getAllPdfMaterials(),
+        getAllPdfTests()
+      ]);
+      setAllMaterials(mats);
+      setAllTests(tsts);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedTopic) {
+      fetchTopicData(selectedTopic.id);
+    }
+  }, [selectedTopic]);
+
+  const fetchTopics = async () => {
+    try {
+      const allTopics = await getAllTopics();
+      setTopics(allTopics);
+    } catch (error) {
+      console.error('Failed to fetch topics:', error);
+    }
+  };
+
+  const fetchTopicData = async (topicId: number) => {
+    setLoading(true);
+    try {
+      const [mats, tsts] = await Promise.all([
+        getPdfMaterialsByTopic(topicId),
+        getPdfTestsByTopic(topicId)
+      ]);
+      setMaterials(mats);
+      setTests(tsts);
+    } catch (error) {
+      console.error('Failed to fetch topic data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleOpenMaterial = async (mat: PdfMaterial) => {
+    if (onOpenMaterial) onOpenMaterial(mat);
+    if (mat.id) {
+      try {
+        await markPdfMaterialOpened(mat.id);
+        if (selectedTopic) fetchTopicData(selectedTopic.id);
+      } catch (e) {
+        console.error("Failed to mark material as opened:", e);
+      }
+    }
+  };
+
+  const handleDeleteMaterial = (e: React.MouseEvent, id: number, name: string) => {
+    e.stopPropagation();
+    setPendingDelete({ type: 'material', id, name });
+  };
+
+  const handleDeleteTest = (e: React.MouseEvent, id: number, name: string) => {
+    e.stopPropagation();
+    setPendingDelete({ type: 'test', id, name });
+  };
+
+  const handleDeleteTopic = (e: React.MouseEvent, id: number, name: string) => {
+    e.stopPropagation();
+    setPendingDelete({ type: 'topic', id, name });
+  };
+
+  const executeDelete = async () => {
+    if (!pendingDelete) return;
+    try {
+      if (pendingDelete.type === 'material') {
+        await deletePdfMaterial(pendingDelete.id);
+        if (selectedTopic) fetchTopicData(selectedTopic.id);
+        fetchAllData();
+      } else if (pendingDelete.type === 'test') {
+        await deletePdfTest(pendingDelete.id);
+        if (selectedTopic) fetchTopicData(selectedTopic.id);
+        fetchAllData();
+      } else if (pendingDelete.type === 'topic') {
+        await deleteTopic(pendingDelete.id);
+        if (selectedTopic?.id === pendingDelete.id) {
+          setSelectedTopic(null);
+          setMaterials([]);
+          setTests([]);
+        }
+        fetchTopics();
+        fetchAllData();
+      }
+    } catch (err) {
+      console.error('Delete failed:', err);
+    } finally {
+      setPendingDelete(null);
+    }
+  };
+
+  const executeEdit = async (newName: string) => {
+    if (!pendingEdit) return;
+    try {
+      if (pendingEdit.type === 'topic') {
+        await updateTopicName(pendingEdit.id, newName);
+        fetchTopics();
+        if (selectedTopic?.id === pendingEdit.id) {
+          setSelectedTopic(prev => prev ? { ...prev, name: newName } : null);
+        }
+      } else if (pendingEdit.type === 'material') {
+        await updatePdfMaterialName(pendingEdit.id, newName);
+        if (selectedTopic) fetchTopicData(selectedTopic.id);
+        fetchAllData();
+      } else if (pendingEdit.type === 'test') {
+        await updatePdfTestName(pendingEdit.id, newName);
+        if (selectedTopic) fetchTopicData(selectedTopic.id);
+        fetchAllData();
+      }
+    } catch (err) {
+      console.error('Rename failed:', err);
+    } finally {
+      setPendingEdit(null);
+    }
+  };
+
+  const formatDate = (dateStr: string) => {
+    return new Intl.DateTimeFormat(undefined, {
+      dateStyle: 'medium',
+      timeStyle: 'short'
+    }).format(new Date(dateStr));
+  };
+
+  const formatStudyTime = (seconds: number) => {
+    if (!seconds || seconds < 60) return `${seconds ?? 0}s`;
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    if (h > 0) return `${h}h ${m}m`;
+    if (m > 0 && s > 0) return `${m}m ${s}s`;
+    return `${m}m`;
+  };
+
+  const getTopicName = (topicId: number | null) => {
+    if (!topicId) return 'Unknown Topic';
+    const topic = topics.find(t => t.id === topicId);
+    return topic ? topic.name : 'Unknown Topic';
+  };
+
+  const isSearching = searchQuery.trim().length > 0;
+  const filteredMaterials = isSearching ? allMaterials.filter(m => m.name.toLowerCase().includes(searchQuery.toLowerCase())) : [];
+  const filteredTests = isSearching ? allTests.filter(t => t.name.toLowerCase().includes(searchQuery.toLowerCase())) : [];
+
+  const dialogConfig = pendingDelete ? {
+    title:
+      pendingDelete.type === 'topic' ? 'Delete Topic' :
+      pendingDelete.type === 'material' ? 'Delete Material' : 'Delete Test',
+    message:
+      pendingDelete.type === 'topic'
+        ? `Delete "${pendingDelete.name}" and ALL its tests and materials? This cannot be undone.`
+        : pendingDelete.type === 'material'
+        ? `Delete the material "${pendingDelete.name}"? This cannot be undone.`
+        : `Delete the test "${pendingDelete.name}" and all its attempts? This cannot be undone.`,
+  } : null;
+
+  return (
+    <>
+      <ConfirmDialog
+        isOpen={!!pendingDelete}
+        title={dialogConfig?.title ?? ''}
+        message={dialogConfig?.message ?? ''}
+        confirmLabel="Delete"
+        onConfirm={executeDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
+      <EditNameDialog
+        isOpen={!!pendingEdit}
+        title={
+          pendingEdit?.type === 'topic' ? 'Rename Topic' :
+          pendingEdit?.type === 'material' ? 'Rename Material' : 'Rename Test'
+        }
+        currentName={pendingEdit?.name ?? ''}
+        onSave={executeEdit}
+        onCancel={() => setPendingEdit(null)}
+      />
+    <div className="w-full max-w-5xl mx-auto flex flex-col gap-6 h-[75vh]">
+      {/* Global Search Bar */}
+      <div className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl shadow-xl p-4 flex items-center">
+        <input 
+          type="text" 
+          placeholder="Search all materials and tests by name..." 
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full bg-transparent text-white outline-none font-bold placeholder:text-zinc-600"
+        />
+        {searchQuery && (
+          <button onClick={() => setSearchQuery('')} className="text-zinc-500 hover:text-white font-bold text-xs ml-4 tracking-widest">
+            CLEAR
+          </button>
+        )}
+      </div>
+
+      {isSearching ? (
+        <div className="flex-1 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-xl overflow-hidden flex flex-col min-h-0">
+          <div className="p-6 border-b border-zinc-800 flex justify-between items-center bg-zinc-950/50">
+            <h2 className="text-2xl font-black text-white tracking-tight">Search Results for "{searchQuery}"</h2>
+          </div>
+          <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
+            {filteredMaterials.length === 0 && filteredTests.length === 0 ? (
+              <div className="text-center text-zinc-500 py-12 font-bold">No materials or tests found.</div>
+            ) : (
+              <>
+                {filteredMaterials.length > 0 && (
+                  <section>
+                    <h3 className="text-lg font-black text-white uppercase tracking-widest text-zinc-400 mb-4 flex items-center gap-2">
+                      <span className="w-2 h-6 bg-indigo-500 rounded-full inline-block"></span>
+                      Materials
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {filteredMaterials.map(mat => (
+                        <div
+                          key={mat.id}
+                          className="relative p-5 text-left bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 rounded-2xl transition-all group flex flex-col gap-3 h-full"
+                        >
+                          <button
+                            onClick={() => handleOpenMaterial(mat)}
+                            className="w-full text-left flex flex-col gap-1 flex-1"
+                          >
+                            <div className="w-full flex justify-between items-start gap-4">
+                              <h4 className="text-white font-bold text-lg group-hover:text-blue-400 transition-colors line-clamp-2">{mat.name}</h4>
+                              <span className="shrink-0 px-2 py-1 bg-zinc-800 border border-zinc-700 text-zinc-400 text-[9px] rounded-lg uppercase font-black">{getTopicName(mat.topicId)}</span>
+                            </div>
+                            <div className="mt-auto w-full pt-2 flex flex-col gap-0.5">
+                              {mat.last_opened_at ? (
+                                <p className="text-zinc-400 text-[10px] uppercase tracking-widest font-bold">
+                                  Last opened: {formatDate(mat.last_opened_at)}
+                                </p>
+                              ) : (
+                                <p className="text-zinc-600 text-[10px] uppercase tracking-widest font-bold">Unopened</p>
+                              )}
+                              {(mat.total_study_seconds ?? 0) > 0 && (
+                                <p className="text-indigo-400 text-[10px] uppercase tracking-widest font-bold">
+                                  Study time: {formatStudyTime(mat.total_study_seconds!)}
+                                </p>
+                              )}
+                            </div>
+                          </button>
+                          {mat.id && (
+                            <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setPendingEdit({ type: 'material', id: mat.id!, name: mat.name }); }}
+                                className="w-6 h-6 flex items-center justify-center rounded-lg bg-zinc-700/50 hover:bg-zinc-600 text-zinc-300 text-xs font-black"
+                                title="Rename material"
+                              >✎</button>
+                              <button
+                                onClick={(e) => handleDeleteMaterial(e, mat.id!, mat.name)}
+                                className="w-6 h-6 flex items-center justify-center rounded-lg bg-red-500/10 hover:bg-red-500/30 text-red-500 text-xs font-black"
+                                title="Delete material"
+                              >✕</button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
+                {filteredMaterials.length > 0 && filteredTests.length > 0 && <hr className="border-zinc-800" />}
+                {filteredTests.length > 0 && (
+                  <section>
+                    <h3 className="text-lg font-black text-white uppercase tracking-widest text-zinc-400 mb-4 flex items-center gap-2">
+                      <span className="w-2 h-6 bg-blue-500 rounded-full inline-block"></span>
+                      Tests
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {filteredTests.map(test => (
+                        <div
+                          key={test.id}
+                          className="relative p-5 text-left bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 rounded-2xl transition-all group flex flex-col gap-3 h-full"
+                        >
+                          <button
+                            onClick={() => onOpenTest && test.id && onOpenTest(test.id)}
+                            className="w-full text-left flex flex-col gap-1 flex-1"
+                          >
+                            <div className="w-full flex justify-between items-start gap-4">
+                              <h4 className="text-white font-bold text-lg group-hover:text-blue-400 transition-colors line-clamp-2">{test.name}</h4>
+                              <span className="shrink-0 px-2 py-1 bg-zinc-800 border border-zinc-700 text-zinc-400 text-[9px] rounded-lg uppercase font-black">{getTopicName(test.topicId)}</span>
+                            </div>
+                            <div className="mt-auto w-full pt-2">
+                              {test.lastAttempt ? (
+                                <p className="text-zinc-400 text-[10px] uppercase tracking-widest font-bold">
+                                  Last: {formatDate(test.lastAttempt.attemptedAt)} • Score: {test.lastAttempt.score}/{test.lastAttempt.totalQuestions}
+                                </p>
+                              ) : (
+                                <p className="text-zinc-600 text-[10px] uppercase tracking-widest font-bold">Unattempted</p>
+                              )}
+                            </div>
+                          </button>
+                          {test.id && (
+                            <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setPendingEdit({ type: 'test', id: test.id!, name: test.name }); }}
+                                className="w-6 h-6 flex items-center justify-center rounded-lg bg-zinc-700/50 hover:bg-zinc-600 text-zinc-300 text-xs font-black"
+                                title="Rename test"
+                              >✎</button>
+                              <button
+                                onClick={(e) => handleDeleteTest(e, test.id!, test.name)}
+                                className="w-6 h-6 flex items-center justify-center rounded-lg bg-red-500/10 hover:bg-red-500/30 text-red-500 text-xs font-black"
+                                title="Delete test"
+                              >✕</button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="flex gap-6 flex-1 min-h-0">
+      {/* Topics List Sidebar */}
+      <div className="w-1/3 flex flex-col bg-zinc-900 border border-zinc-800 rounded-2xl shadow-xl overflow-hidden">
+        <div className="p-6 border-b border-zinc-800">
+          <h2 className="text-xl font-black text-white tracking-tight uppercase">Topics</h2>
+        </div>
+        <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
+          {topics.length === 0 ? (
+            <p className="text-center text-zinc-500 py-8 text-sm">No topics available.</p>
+          ) : (
+            topics.map(topic => (
+              <div
+                key={topic.id}
+                className="relative group flex items-center"
+              >
+                <button
+                  onClick={() => setSelectedTopic(topic)}
+                  className={`flex-1 text-left px-4 py-3 rounded-xl transition-all font-bold pr-16 ${
+                    selectedTopic?.id === topic.id
+                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
+                      : 'bg-zinc-950 text-zinc-400 hover:bg-zinc-800 hover:text-white border border-zinc-800'
+                  }`}
+                >
+                  {topic.name}
+                </button>
+                <div className="absolute right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setPendingEdit({ type: 'topic', id: topic.id, name: topic.name }); }}
+                    className="w-6 h-6 flex items-center justify-center rounded-lg bg-zinc-700/50 hover:bg-zinc-600 text-zinc-300 text-xs font-black"
+                    title="Rename topic"
+                  >✎</button>
+                  <button
+                    onClick={(e) => handleDeleteTopic(e, topic.id, topic.name)}
+                    className="w-6 h-6 flex items-center justify-center rounded-lg bg-red-500/10 hover:bg-red-500/30 text-red-500 text-xs font-black"
+                    title="Delete topic"
+                  >✕</button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Topic Content Area */}
+      <div className="flex-1 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-xl overflow-hidden flex flex-col">
+        {!selectedTopic ? (
+          <div className="flex-1 flex items-center justify-center text-zinc-500 font-bold">
+            Select a topic to view materials and tests
+          </div>
+        ) : (
+          <div className="flex-1 flex flex-col h-full overflow-hidden">
+            <div className="p-6 border-b border-zinc-800 flex justify-between items-center bg-zinc-950/50">
+              <h2 className="text-2xl font-black text-white tracking-tight">{selectedTopic.name}</h2>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
+              {loading ? (
+                <div className="text-center text-zinc-500 py-12">Loading...</div>
+              ) : (
+                <>
+                  {/* Study Materials Section */}
+                  <section>
+                    <div className="mb-4">
+                      <h3 className="text-lg font-black text-white uppercase tracking-widest text-zinc-400">Study Materials</h3>
+                    </div>
+                    
+                    {materials.length === 0 ? (
+                      <div className="p-8 border-2 border-dashed border-zinc-800 rounded-2xl text-center">
+                        <p className="text-zinc-500 text-sm">No materials added yet.</p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {materials.map(mat => (
+                          <div
+                            key={mat.id}
+                            className="relative p-4 text-left bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 rounded-2xl transition-all group"
+                          >
+                            <button
+                              onClick={() => handleOpenMaterial(mat)}
+                              className="w-full text-left"
+                            >
+                              <h4 className="text-white font-bold group-hover:text-blue-400 transition-colors pr-6">{mat.name}</h4>
+                              {mat.last_opened_at ? (
+                                <p className="text-zinc-400 text-[10px] mt-2 uppercase tracking-widest">
+                                  Last opened: {formatDate(mat.last_opened_at)}
+                                </p>
+                              ) : (
+                                <p className="text-zinc-600 text-[10px] mt-2 uppercase tracking-widest">Unopened</p>
+                              )}
+                              {(mat.total_study_seconds ?? 0) > 0 && (
+                                <p className="text-indigo-400 text-[10px] mt-0.5 uppercase tracking-widest">
+                                  Study time: {formatStudyTime(mat.total_study_seconds!)}
+                                </p>
+                              )}
+                            </button>
+                            {mat.id && (
+                              <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setPendingEdit({ type: 'material', id: mat.id!, name: mat.name }); }}
+                                  className="w-6 h-6 flex items-center justify-center rounded-lg bg-zinc-700/50 hover:bg-zinc-600 text-zinc-300 text-xs font-black"
+                                  title="Rename material"
+                                >✎</button>
+                                <button
+                                  onClick={(e) => handleDeleteMaterial(e, mat.id!, mat.name)}
+                                  className="w-6 h-6 flex items-center justify-center rounded-lg bg-red-500/10 hover:bg-red-500/30 text-red-500 text-xs font-black"
+                                  title="Delete material"
+                                >✕</button>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </section>
+
+                  <hr className="border-zinc-800" />
+
+                  {/* Tests Section */}
+                  <section>
+                    <div className="mb-4">
+                      <h3 className="text-lg font-black text-white uppercase tracking-widest text-zinc-400">Tests</h3>
+                      <p className="text-xs text-zinc-500 mt-1">Tests registered under this topic.</p>
+                    </div>
+                    
+                    {tests.length === 0 ? (
+                      <div className="p-8 border-2 border-dashed border-zinc-800 rounded-2xl text-center">
+                        <p className="text-zinc-500 text-sm">No tests registered yet.</p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {tests.map(test => (
+                          <div
+                            key={test.id}
+                            className="relative p-4 text-left bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 rounded-2xl transition-all group"
+                          >
+                            <button
+                              onClick={() => onOpenTest && test.id && onOpenTest(test.id)}
+                              className="w-full text-left"
+                            >
+                              <h4 className="text-white font-bold group-hover:text-blue-400 transition-colors pr-6">{test.name}</h4>
+                              {test.lastAttempt ? (
+                                <p className="text-zinc-400 text-[10px] mt-2 uppercase tracking-widest">
+                                  Last: {formatDate(test.lastAttempt.attemptedAt)} • Score: {test.lastAttempt.score}/{test.lastAttempt.totalQuestions}
+                                </p>
+                              ) : (
+                                <p className="text-zinc-600 text-[10px] mt-2 uppercase tracking-widest">Unattempted</p>
+                              )}
+                            </button>
+                            {test.id && (
+                              <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setPendingEdit({ type: 'test', id: test.id!, name: test.name }); }}
+                                  className="w-6 h-6 flex items-center justify-center rounded-lg bg-zinc-700/50 hover:bg-zinc-600 text-zinc-300 text-xs font-black"
+                                  title="Rename test"
+                                >✎</button>
+                                <button
+                                  onClick={(e) => handleDeleteTest(e, test.id!, test.name)}
+                                  className="w-6 h-6 flex items-center justify-center rounded-lg bg-red-500/10 hover:bg-red-500/30 text-red-500 text-xs font-black"
+                                  title="Delete test"
+                                >✕</button>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+        </div>
+      )}
+    </div>
+    </>
+  );
+};

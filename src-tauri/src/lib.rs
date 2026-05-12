@@ -91,6 +91,37 @@ pub fn run() {
                         ",
                             kind: tauri_plugin_sql::MigrationKind::Up,
                         },
+                        tauri_plugin_sql::Migration {
+                            version: 6,
+                            description: "add pdf materials",
+                            sql: "
+                            CREATE TABLE IF NOT EXISTS pdf_materials (
+                                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                name TEXT NOT NULL,
+                                pdf_path TEXT NOT NULL,
+                                source_pdf_path TEXT,
+                                topic_id INTEGER REFERENCES topics(id),
+                                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                            );
+                        ",
+                            kind: tauri_plugin_sql::MigrationKind::Up,
+                        },
+                        tauri_plugin_sql::Migration {
+                            version: 7,
+                            description: "add last_opened_at to pdf_materials",
+                            sql: "
+                            ALTER TABLE pdf_materials ADD COLUMN last_opened_at DATETIME;
+                        ",
+                            kind: tauri_plugin_sql::MigrationKind::Up,
+                        },
+                        tauri_plugin_sql::Migration {
+                            version: 8,
+                            description: "add total_study_seconds to pdf_materials",
+                            sql: "
+                            ALTER TABLE pdf_materials ADD COLUMN total_study_seconds INTEGER NOT NULL DEFAULT 0;
+                        ",
+                            kind: tauri_plugin_sql::MigrationKind::Up,
+                        },
                     ],
                 )
                 .build(),

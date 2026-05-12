@@ -1,17 +1,32 @@
 import { useState } from "react";
 import "./App.css";
 import { PdfTestBuilder } from "./components/PdfTestBuilder";
+import { TopicsManager } from "./components/TopicsManager";
+import { HistoryDashboard } from "./components/HistoryDashboard";
+import { PdfMaterialViewer } from "./components/PdfMaterialViewer";
 import { PdfTestMode } from "./components/PdfTestMode";
 
-type Tab = 'pdf-builder' | 'pdf-test';
+type Tab = 'topics' | 'pdf-builder' | 'history';
 
 function App() {
-  const [activeTab, setActiveTab] = useState<Tab>('pdf-builder');
+  const [activeTab, setActiveTab] = useState<Tab>('topics');
 
   const tabs: { id: Tab, label: string }[] = [
+    { id: 'history', label: 'Recent History' },
+    { id: 'topics', label: 'Topics & Materials' },
     { id: 'pdf-builder', label: 'Setup PDF Test' },
-    { id: 'pdf-test', label: 'Live PDF Test' },
   ];
+
+  const [activeMaterial, setActiveMaterial] = useState<any | null>(null);
+  const [activeTestId, setActiveTestId] = useState<number | null>(null);
+
+  if (activeMaterial) {
+    return <PdfMaterialViewer material={activeMaterial} onClose={() => setActiveMaterial(null)} />;
+  }
+
+  if (activeTestId) {
+    return <PdfTestMode testId={activeTestId} onExit={() => setActiveTestId(null)} />;
+  }
 
   return (
     <main className="min-h-screen bg-black text-zinc-100 p-8 pb-24">
@@ -40,8 +55,19 @@ function App() {
         </div>
 
         <div className="animate-fade-in">
+          {activeTab === 'history' && (
+            <HistoryDashboard 
+              onOpenMaterial={(mat) => setActiveMaterial(mat)}
+              onOpenTest={(testId) => setActiveTestId(testId)}
+            />
+          )}
+          {activeTab === 'topics' && (
+            <TopicsManager 
+              onOpenMaterial={(mat) => setActiveMaterial(mat)}
+              onOpenTest={(testId) => setActiveTestId(testId)}
+            />
+          )}
           {activeTab === 'pdf-builder' && <PdfTestBuilder />}
-          {activeTab === 'pdf-test' && <PdfTestMode />}
         </div>
       </div>
     </main>
