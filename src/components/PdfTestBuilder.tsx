@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { pickAndSavePdf } from '../lib/storage';
-import { getAllTopics, createTopic, Topic, savePdfTest, savePdfMaterial, PdfAnswer } from '../lib/db';
+import { getAllTopics, createTopic, Topic, savePdfTest, savePdfMaterial, PdfAnswer, saveTextTest } from '../lib/db';
 
 export const PdfTestBuilder: React.FC = () => {
-  const [uploadMode, setUploadMode] = useState<'test' | 'material'>('test');
+  const [uploadMode, setUploadMode] = useState<'pdf_test' | 'text_test' | 'material'>('pdf_test');
   const [name, setName] = useState('');
   const [pdfPath, setPdfPath] = useState<string | null>(null);
   const [topicId, setTopicId] = useState<number | null>(null);
@@ -14,6 +14,11 @@ export const PdfTestBuilder: React.FC = () => {
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info', text: string } | null>(null);
+
+  // Text Test state
+  const [textQuestions, setTextQuestions] = useState<{ text: string, options: { text: string, isCorrect: boolean }[] }[]>([
+    { text: '', options: [{ text: '', isCorrect: true }, { text: '', isCorrect: false }, { text: '', isCorrect: false }, { text: '', isCorrect: false }] }
+  ]);
 
   useEffect(() => {
     fetchTopics();
@@ -56,15 +61,65 @@ export const PdfTestBuilder: React.FC = () => {
     }
   };
 
+  // Text Question handlers
+  const handleAddTextQuestion = () => {
+    setTextQuestions(prev => [...prev, { text: '', options: [{ text: '', isCorrect: true }, { text: '', isCorrect: false }, { text: '', isCorrect: false }, { text: '', isCorrect: false }] }]);
+  };
+
+  const handleRemoveTextQuestion = (index: number) => {
+    setTextQuestions(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleTextQuestionChange = (index: number, text: string) => {
+    const newQs = [...textQuestions];
+    newQs[index].text = text;
+    setTextQuestions(newQs);
+  };
+
+  const handleTextOptionChange = (qIndex: number, oIndex: number, text: string) => {
+    const newQs = [...textQuestions];
+    newQs[qIndex].options[oIndex].text = text;
+    setTextQuestions(newQs);
+  };
+
+  const handleTextOptionCorrectChange = (qIndex: number, oIndex: number) => {
+    const newQs = [...textQuestions];
+    newQs[qIndex].options.forEach((o, i) => {
+      o.isCorrect = (i === oIndex);
+    });
+    setTextQuestions(newQs);
+  };
+
+  const handleAddTextOption = (qIndex: number) => {
+    const newQs = [...textQuestions];
+    newQs[qIndex].options.push({ text: '', isCorrect: false });
+    setTextQuestions(newQs);
+  };
+
+  const handleRemoveTextOption = (qIndex: number, oIndex: number) => {
+    const newQs = [...textQuestions];
+    if (newQs[qIndex].options.length > 2) {
+      newQs[qIndex].options.splice(oIndex, 1);
+      if (!newQs[qIndex].options.some(o => o.isCorrect)) {
+        newQs[qIndex].options[0].isCorrect = true;
+      }
+      setTextQuestions(newQs);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!pdfPath || !name.trim() || !topicId) {
-      setMessage({ type: 'error', text: 'Please fill all fields' });
+    if (!name.trim() || !topicId) {
+      setMessage({ type: 'error', text: 'Please fill name and topic fields' });
+      return;
+    }
+    if (uploadMode !== 'text_test' && !pdfPath) {
+      setMessage({ type: 'error', text: 'Please upload a PDF document' });
       return;
     }
 
     const registeredAnswers: PdfAnswer[] = [];
-    if (uploadMode === 'test') {
+    if (uploadMode === 'pdf_test') {
       for (let i = 1; i <= numQuestions; i++) {
         if (!answers[i]) {
           setMessage({ type: 'error', text: `Please provide an answer for Question ${i}` });
@@ -75,26 +130,60 @@ export const PdfTestBuilder: React.FC = () => {
           correctOption: answers[i]
         });
       }
+    } else if (uploadMode === 'text_test') {
+      if (textQuestions.length === 0) {
+        setMessage({ type: 'error', text: 'Please add at least one question' });
+        return;
+      }
+      for (let i = 0; i < textQuestions.length; i++) {
+        const q = textQuestions[i];
+        if (!q.text.trim()) {
+          setMessage({ type: 'error', text: `Question ${i + 1} text cannot be empty` });
+          return;
+        }
+        for (let j = 0; j < q.options.length; j++) {
+          if (!q.options[j].text.trim()) {
+            setMessage({ type: 'error', text: `Question ${i + 1}, Option ${j + 1} cannot be empty` });
+            return;
+          }
+        }
+      }
     }
 
     setLoading(true);
     setMessage({ type: 'info', text: 'Processing...' });
     
     try {
-      if (uploadMode === 'test') {
+      if (uploadMode === 'pdf_test') {
         await savePdfTest({
           name,
           pdfPath: '',
-          sourcePdfPath: pdfPath,
+          sourcePdfPath: pdfPath!,
           topicId,
           answers: registeredAnswers
         });
         setMessage({ type: 'success', text: 'PDF Test registered successfully!' });
+      } else if (uploadMode === 'text_test') {
+        await saveTextTest({
+          name,
+          topicId,
+          questions: textQuestions.map(q => ({
+            text: q.text,
+            imagePath: null,
+            topicId,
+            options: q.options.map(o => ({
+              text: o.text,
+              isCorrect: o.isCorrect
+            }))
+          }))
+        });
+        setMessage({ type: 'success', text: 'Text Test created successfully!' });
+        setTextQuestions([{ text: '', options: [{ text: '', isCorrect: true }, { text: '', isCorrect: false }, { text: '', isCorrect: false }, { text: '', isCorrect: false }] }]);
       } else {
         await savePdfMaterial({
           name,
           pdfPath: '',
-          sourcePdfPath: pdfPath,
+          sourcePdfPath: pdfPath!,
           topicId
         });
         setMessage({ type: 'success', text: 'Study Material registered successfully!' });
@@ -105,28 +194,37 @@ export const PdfTestBuilder: React.FC = () => {
       setAnswers({});
     } catch (error) {
       console.error('Conversion/Save failed:', error);
-      setMessage({ type: 'error', text: 'Failed to process PDF: ' + error });
+      setMessage({ type: 'error', text: 'Failed to process: ' + error });
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto p-6 bg-white border border-sky-200 rounded-2xl shadow-xl">
+    <div className="w-full max-w-[1200px] mx-auto p-8 bg-white border border-sky-200 rounded-2xl shadow-xl">
       <div className="flex justify-between items-center mb-8">
-        <h2 className="text-2xl font-black text-zinc-900 tracking-tight">Upload PDF Document</h2>
+        <h2 className="text-2xl font-black text-zinc-900 tracking-tight">Resource Builder</h2>
         <div className="flex bg-sky-50 rounded-xl p-1 border border-sky-200">
           <button
-            onClick={() => setUploadMode('test')}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${uploadMode === 'test' ? 'bg-blue-600 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-900'}`}
+            type="button"
+            onClick={() => setUploadMode('pdf_test')}
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${uploadMode === 'pdf_test' ? 'bg-blue-600 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-900'}`}
           >
-            Create PDF Test
+            PDF Test
           </button>
           <button
+            type="button"
+            onClick={() => setUploadMode('text_test')}
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${uploadMode === 'text_test' ? 'bg-blue-600 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-900'}`}
+          >
+            Text Test
+          </button>
+          <button
+            type="button"
             onClick={() => setUploadMode('material')}
             className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${uploadMode === 'material' ? 'bg-blue-600 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-900'}`}
           >
-            Create Study Material
+            Study Material
           </button>
         </div>
       </div>
@@ -134,7 +232,7 @@ export const PdfTestBuilder: React.FC = () => {
       <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-12">
         <div className="space-y-6">
           <div>
-            <label className="block text-xs font-black text-zinc-500 uppercase tracking-widest mb-2">Test Name</label>
+            <label className="block text-xs font-black text-zinc-500 uppercase tracking-widest mb-2">Name</label>
             <input
               type="text"
               value={name}
@@ -177,19 +275,21 @@ export const PdfTestBuilder: React.FC = () => {
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-black text-zinc-500 uppercase tracking-widest mb-2">PDF Document</label>
-            <button
-              type="button"
-              onClick={handlePickPdf}
-              className={`w-full p-4 border-2 border-dashed rounded-2xl transition-all ${pdfPath ? 'border-green-500/50 bg-green-500/5 text-green-400' : 'border-sky-300 hover:border-sky-400 bg-white text-zinc-600'}`}
-            >
-              {pdfPath ? '✓ PDF Uploaded' : 'Click to Upload PDF'}
-            </button>
-            {pdfPath && <p className="mt-2 text-[10px] text-zinc-600 truncate">{pdfPath}</p>}
-          </div>
+          {uploadMode !== 'text_test' && (
+            <div>
+              <label className="block text-xs font-black text-zinc-500 uppercase tracking-widest mb-2">PDF Document</label>
+              <button
+                type="button"
+                onClick={handlePickPdf}
+                className={`w-full p-4 border-2 border-dashed rounded-2xl transition-all ${pdfPath ? 'border-green-500/50 bg-green-500/5 text-green-400' : 'border-sky-300 hover:border-sky-400 bg-white text-zinc-600'}`}
+              >
+                {pdfPath ? '✓ PDF Uploaded' : 'Click to Upload PDF'}
+              </button>
+              {pdfPath && <p className="mt-2 text-[10px] text-zinc-600 truncate">{pdfPath}</p>}
+            </div>
+          )}
 
-          {uploadMode === 'test' && (
+          {uploadMode === 'pdf_test' && (
             <div>
               <label className="block text-xs font-black text-zinc-500 uppercase tracking-widest mb-2">Number of Questions</label>
               <input
@@ -205,9 +305,9 @@ export const PdfTestBuilder: React.FC = () => {
 
           {message && (
             <div className={`p-4 rounded-xl text-sm font-bold ${
-              message.type === 'success' ? 'bg-green-900/20 text-green-400 border border-green-800' : 
-              message.type === 'info' ? 'bg-blue-900/20 text-blue-400 border border-blue-800' :
-              'bg-red-900/20 text-red-400 border border-red-800'
+              message.type === 'success' ? 'bg-green-900/20 text-green-700 border border-green-300' : 
+              message.type === 'info' ? 'bg-blue-900/20 text-blue-700 border border-blue-300' :
+              'bg-red-900/20 text-red-700 border border-red-300'
             }`}>
               {message.text}
             </div>
@@ -218,36 +318,120 @@ export const PdfTestBuilder: React.FC = () => {
             disabled={loading}
             className="w-full py-4 bg-blue-600 hover:bg-blue-500 disabled:bg-sky-100 disabled:text-zinc-500 text-white font-black rounded-xl transition-all shadow-xl shadow-blue-500/10 uppercase tracking-widest"
           >
-            {loading ? 'Processing...' : (uploadMode === 'test' ? 'Register Test' : 'Save Material')}
+            {loading ? 'Processing...' : (uploadMode === 'pdf_test' ? 'Register PDF Test' : uploadMode === 'text_test' ? 'Create Text Test' : 'Save Material')}
           </button>
         </div>
 
-        {uploadMode === 'test' && (
+        {uploadMode === 'pdf_test' && (
           <div className="space-y-4">
-          <label className="block text-xs font-black text-zinc-500 uppercase tracking-widest mb-2">Register Answer Key</label>
-          <div className="bg-white border border-sky-200 rounded-2xl p-6 h-[500px] overflow-y-auto space-y-4">
-            {Array.from({ length: numQuestions }).map((_, idx) => {
-              const qNum = idx + 1;
-              return (
-                <div key={qNum} className="flex items-center justify-between p-3 bg-sky-50 border border-sky-200 rounded-xl">
-                  <span className="text-zinc-500 font-black text-xs">Q{qNum}</span>
-                  <div className="flex gap-2">
-                    {['A', 'B', 'C', 'D', 'E'].map(opt => (
+            <label className="block text-xs font-black text-zinc-500 uppercase tracking-widest mb-2">Register Answer Key</label>
+            <div className="bg-white border border-sky-200 rounded-2xl p-6 h-[500px] overflow-y-auto space-y-4">
+              {Array.from({ length: numQuestions }).map((_, idx) => {
+                const qNum = idx + 1;
+                return (
+                  <div key={qNum} className="flex items-center justify-between p-3 bg-sky-50 border border-sky-200 rounded-xl">
+                    <span className="text-zinc-500 font-black text-xs">Q{qNum}</span>
+                    <div className="flex gap-2">
+                      {['A', 'B', 'C', 'D', 'E'].map(opt => (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => handleAnswerChange(qNum, opt)}
+                          className={`w-8 h-8 rounded-lg text-xs font-black border transition-all ${answers[qNum] === opt ? 'bg-blue-600 border-blue-500 text-white' : 'border-sky-200 text-zinc-500 hover:border-sky-300'}`}
+                        >
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {uploadMode === 'text_test' && (
+          <div className="space-y-4">
+            <div className="flex justify-between items-center mb-2">
+              <label className="block text-xs font-black text-zinc-500 uppercase tracking-widest">Questions Builder</label>
+              <button
+                type="button"
+                onClick={handleAddTextQuestion}
+                className="px-3 py-1 bg-sky-100 text-blue-600 text-[10px] font-black rounded-lg uppercase tracking-wider hover:bg-sky-200"
+              >
+                + Add Question
+              </button>
+            </div>
+            
+            <div className="bg-white border border-sky-200 rounded-2xl p-6 h-[500px] overflow-y-auto space-y-6">
+              {textQuestions.map((q, qIdx) => (
+                <div key={qIdx} className="p-4 bg-sky-50 border border-sky-200 rounded-xl space-y-4 relative">
+                  <div className="flex justify-between items-start gap-4">
+                    <span className="text-blue-600 font-black text-sm mt-2">Q{qIdx + 1}</span>
+                    <textarea
+                      value={q.text}
+                      onChange={(e) => handleTextQuestionChange(qIdx, e.target.value)}
+                      placeholder="Type question here..."
+                      className="flex-1 p-3 bg-white border border-sky-200 rounded-xl text-sm text-zinc-900 outline-none focus:border-blue-500 min-h-[80px]"
+                    />
+                    {textQuestions.length > 1 && (
                       <button
-                        key={opt}
                         type="button"
-                        onClick={() => handleAnswerChange(qNum, opt)}
-                        className={`w-8 h-8 rounded-lg text-xs font-black border transition-all ${answers[qNum] === opt ? 'bg-blue-600 border-blue-500 text-white' : 'border-sky-200 text-zinc-500 hover:border-sky-300'}`}
+                        onClick={() => handleRemoveTextQuestion(qIdx)}
+                        className="text-red-500 hover:text-red-700 font-black text-lg px-2"
+                        title="Remove Question"
                       >
-                        {opt}
+                        ×
                       </button>
+                    )}
+                  </div>
+                  
+                  <div className="pl-8 space-y-2">
+                    {q.options.map((opt, oIdx) => (
+                      <div key={oIdx} className="flex items-center gap-3">
+                        <input
+                          type="radio"
+                          name={`q-${qIdx}-correct`}
+                          checked={opt.isCorrect}
+                          onChange={() => handleTextOptionCorrectChange(qIdx, oIdx)}
+                          className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                        />
+                        <input
+                          type="text"
+                          value={opt.text}
+                          onChange={(e) => handleTextOptionChange(qIdx, oIdx, e.target.value)}
+                          placeholder={`Option ${String.fromCharCode(65 + oIdx)}`}
+                          className={`flex-1 p-2 text-sm bg-white border rounded-lg outline-none focus:border-blue-500 ${opt.isCorrect ? 'border-blue-400 bg-blue-50' : 'border-sky-200'}`}
+                        />
+                        {q.options.length > 2 && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveTextOption(qIdx, oIdx)}
+                            className="text-zinc-400 hover:text-red-500 px-2"
+                            title="Remove Option"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
                     ))}
+                    {q.options.length < 6 && (
+                      <button
+                        type="button"
+                        onClick={() => handleAddTextOption(qIdx)}
+                        className="text-xs text-blue-500 font-bold hover:text-blue-700 mt-2"
+                      >
+                        + Add Option
+                      </button>
+                    )}
                   </div>
                 </div>
-              );
-            })}
+              ))}
+              {textQuestions.length === 0 && (
+                <div className="text-center text-zinc-400 py-10 font-bold">No questions added yet.</div>
+              )}
+            </div>
           </div>
-        </div>
         )}
       </form>
     </div>

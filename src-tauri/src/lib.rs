@@ -122,6 +122,28 @@ pub fn run() {
                         ",
                             kind: tauri_plugin_sql::MigrationKind::Up,
                         },
+                        tauri_plugin_sql::Migration {
+                            version: 9,
+                            description: "add text tests support",
+                            sql: "
+                            CREATE TABLE IF NOT EXISTS text_tests (
+                                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                name TEXT NOT NULL,
+                                topic_id INTEGER REFERENCES topics(id),
+                                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                            );
+                            ALTER TABLE questions ADD COLUMN text_test_id INTEGER REFERENCES text_tests(id);
+                            CREATE TABLE IF NOT EXISTS text_test_attempts (
+                                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                text_test_id INTEGER NOT NULL REFERENCES text_tests(id),
+                                score INTEGER NOT NULL,
+                                total_questions INTEGER NOT NULL,
+                                duration_seconds INTEGER NOT NULL,
+                                attempted_at TEXT NOT NULL
+                            );
+                        ",
+                            kind: tauri_plugin_sql::MigrationKind::Up,
+                        },
                     ],
                 )
                 .build(),

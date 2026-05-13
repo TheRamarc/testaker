@@ -18,19 +18,29 @@ function App() {
   ];
 
   const [activeMaterial, setActiveMaterial] = useState<any | null>(null);
-  const [activeTestId, setActiveTestId] = useState<number | null>(null);
+  const [activeTest, setActiveTest] = useState<{id: number, type: 'pdf' | 'text'} | null>(null);
 
   if (activeMaterial) {
     return <PdfMaterialViewer material={activeMaterial} onClose={() => setActiveMaterial(null)} />;
   }
 
-  if (activeTestId) {
-    return <PdfTestMode testId={activeTestId} onExit={() => setActiveTestId(null)} />;
+  if (activeTest) {
+    if (activeTest.type === 'pdf') {
+      return <PdfTestMode testId={activeTest.id} onExit={() => setActiveTest(null)} />;
+    } else {
+      return (
+        <div className="fixed inset-0 bg-sky-50 flex flex-col items-center justify-center p-8 text-center z-50">
+          <h2 className="text-4xl font-black text-zinc-900 mb-4">Text Test Mode Coming Soon!</h2>
+          <p className="text-zinc-600 mb-8 max-w-md">You've successfully created a text test. The interface to take these tests is currently under construction.</p>
+          <button onClick={() => setActiveTest(null)} className="px-8 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-black shadow-xl transition-all tracking-widest uppercase">Go Back to Dashboard</button>
+        </div>
+      );
+    }
   }
 
   return (
     <main className="min-h-screen bg-sky-50 text-zinc-900 p-8 pb-24">
-      <div className="max-w-6xl mx-auto">
+      <div className="w-full max-w-[1600px] mx-auto">
         <header className="mb-12 text-center">
           <h1 className="text-4xl font-black mb-4 tracking-tighter bg-gradient-to-r from-blue-400 to-indigo-500 bg-clip-text text-transparent">
             TNPSC MASTER
@@ -58,13 +68,13 @@ function App() {
           {activeTab === 'history' && (
             <HistoryDashboard 
               onOpenMaterial={(mat) => setActiveMaterial(mat)}
-              onOpenTest={(testId) => setActiveTestId(testId)}
+              onOpenTest={(testId, testType) => setActiveTest({id: testId, type: testType})}
             />
           )}
           {activeTab === 'topics' && (
             <TopicsManager 
               onOpenMaterial={(mat) => setActiveMaterial(mat)}
-              onOpenTest={(testId) => setActiveTestId(testId)}
+              onOpenTest={(testId, testType) => setActiveTest({id: testId, type: testType})}
             />
           )}
           {activeTab === 'pdf-builder' && <PdfTestBuilder />}

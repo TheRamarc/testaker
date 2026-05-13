@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { getRecentMaterials, getRecentTestAttempts, PdfMaterial, RecentTestAttempt } from '../lib/db';
 interface HistoryDashboardProps {
   onOpenMaterial?: (mat: PdfMaterial) => void;
-  onOpenTest?: (testId: number) => void;
+  onOpenTest?: (testId: number, testType: 'pdf' | 'text') => void;
 }
 
 export const HistoryDashboard: React.FC<HistoryDashboardProps> = ({ onOpenMaterial, onOpenTest }) => {
@@ -42,7 +42,7 @@ export const HistoryDashboard: React.FC<HistoryDashboardProps> = ({ onOpenMateri
   }
 
   return (
-    <div className="w-full max-w-5xl mx-auto space-y-12">
+    <div className="w-full mx-auto space-y-12">
       <section>
         <h2 className="text-2xl font-black text-zinc-900 uppercase tracking-tight mb-6 flex items-center gap-3">
           <span className="w-2 h-8 bg-blue-500 rounded-full inline-block"></span>
@@ -57,7 +57,7 @@ export const HistoryDashboard: React.FC<HistoryDashboardProps> = ({ onOpenMateri
             {tests.map(t => (
               <button 
                 key={t.id} 
-                onClick={() => onOpenTest && t.pdfTestId && onOpenTest(t.pdfTestId)}
+                onClick={() => onOpenTest && t.testId && onOpenTest(t.testId, t.testType)}
                 className="p-5 text-left bg-white hover:bg-sky-100 transition-all border border-sky-200 rounded-2xl flex flex-col gap-2 group"
               >
                 <h3 className="text-zinc-900 font-bold text-lg truncate group-hover:text-sky-600">{t.testName}</h3>

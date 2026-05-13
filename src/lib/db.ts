@@ -26,6 +26,7 @@ export interface Question {
   text: string;
   imagePath: string | null;
   topicId: number | null;
+  textTestId?: number | null;
   options: Option[];
 }
 
@@ -55,6 +56,23 @@ export interface PdfTest {
   lastAttempt?: PdfTestAttempt | null;
 }
 
+export interface TextTestAttempt {
+  id?: number;
+  textTestId: number;
+  score: number;
+  totalQuestions: number;
+  durationSeconds: number;
+  attemptedAt: string;
+}
+
+export interface TextTest {
+  id?: number;
+  name: string;
+  topicId: number | null;
+  questions: Question[];
+  lastAttempt?: TextTestAttempt | null;
+}
+
 export interface PdfMaterial {
   id?: number;
   name: string;
@@ -81,8 +99,8 @@ export async function saveQuestion(question: Question) {
   const db = await getDb();
   try {
     const result = await db.execute(
-      'INSERT INTO questions (text, image_path, topic_id) VALUES ($1, $2, $3)',
-      [question.text, null, question.topicId]
+      'INSERT INTO questions (text, image_path, topic_id, text_test_id) VALUES ($1, $2, $3, $4)',
+      [question.text, null, question.topicId, question.textTestId ?? null]
     );
     const questionId = result.lastInsertId;
     for (const option of question.options) {
@@ -355,29 +373,57 @@ export async function markPdfMaterialOpened(id: number) {
   await db.execute('UPDATE pdf_materials SET last_opened_at = $1 WHERE id = $2', [now, id]);
 }
 
-export interface RecentTestAttempt extends PdfTestAttempt {
+export interface RecentTestAttempt {
+  id?: number;
+  testId: number;
+  testType: 'pdf' | 'text';
+  score: number;
+  totalQuestions: number;
+  durationSeconds: number;
+  attemptedAt: string;
   testName: string;
 }
 
 export async function getRecentTestAttempts(limit: number = 5): Promise<RecentTestAttempt[]> {
   const db = await getDb();
-  const attempts = await db.select<any[]>(`
+  
+  const pdfAttempts = await db.select<any[]>(`
     SELECT a.*, t.name as test_name
     FROM pdf_test_attempts a
     JOIN pdf_tests t ON a.pdf_test_id = t.id
-    ORDER BY a.attempted_at DESC, a.id DESC
-    LIMIT $1
-  `, [limit]);
+  `);
+  
+  const textAttempts = await db.select<any[]>(`
+    SELECT a.*, t.name as test_name
+    FROM text_test_attempts a
+    JOIN text_tests t ON a.text_test_id = t.id
+  `);
 
-  return attempts.map(a => ({
-    id: a.id,
-    pdfTestId: a.pdf_test_id,
-    score: a.score,
-    totalQuestions: a.total_questions,
-    durationSeconds: a.duration_seconds,
-    attemptedAt: a.attempted_at,
-    testName: a.test_name
-  }));
+  const allAttempts: RecentTestAttempt[] = [
+    ...pdfAttempts.map(a => ({
+      id: a.id,
+      testId: a.pdf_test_id,
+      testType: 'pdf' as const,
+      score: a.score,
+      totalQuestions: a.total_questions,
+      durationSeconds: a.duration_seconds,
+      attemptedAt: a.attempted_at,
+      testName: a.test_name
+    })),
+    ...textAttempts.map(a => ({
+      id: a.id,
+      testId: a.text_test_id,
+      testType: 'text' as const,
+      score: a.score,
+      totalQuestions: a.total_questions,
+      durationSeconds: a.duration_seconds,
+      attemptedAt: a.attempted_at,
+      testName: a.test_name
+    }))
+  ];
+
+  allAttempts.sort((a, b) => new Date(b.attemptedAt).getTime() - new Date(a.attemptedAt).getTime());
+  return allAttempts.slice(0, limit);
 }
 
 export async function getRecentMaterials(limit: number = 5): Promise<PdfMaterial[]> {
@@ -432,6 +478,13 @@ export async function deleteTopic(id: number) {
   }
   // Delete all materials under this topic
   await db.execute('DELETE FROM pdf_materials WHERE topic_id = $1', [id]);
+  
+  // Delete text tests
+  await db.execute('DELETE FROM options WHERE question_id IN (SELECT id FROM questions WHERE text_test_id IN (SELECT id FROM text_tests WHERE topic_id = $1))', [id]);
+  await db.execute('DELETE FROM questions WHERE text_test_id IN (SELECT id FROM text_tests WHERE topic_id = $1)', [id]);
+  await db.execute('DELETE FROM text_test_attempts WHERE text_test_id IN (SELECT id FROM text_tests WHERE topic_id = $1)', [id]);
+  await db.execute('DELETE FROM text_tests WHERE topic_id = $1', [id]);
+
   // Delete the topic itself
   await db.execute('DELETE FROM topics WHERE id = $1', [id]);
 }
@@ -449,4 +502,151 @@ export async function updatePdfMaterialName(id: number, name: string) {
 export async function updatePdfTestName(id: number, name: string) {
   const db = await getDb();
   await db.execute('UPDATE pdf_tests SET name = $1 WHERE id = $2', [name, id]);
+}
+
+export async function saveTextTest(test: TextTest) {
+  const db = await getDb();
+  try {
+    const result = await db.execute(
+      'INSERT INTO text_tests (name, topic_id) VALUES ($1, $2)',
+      [test.name, test.topicId]
+    );
+    const testId = result.lastInsertId;
+    
+    // Save all questions for this test
+    for (const q of test.questions) {
+      q.textTestId = testId;
+      q.topicId = test.topicId;
+      await saveQuestion(q);
+    }
+    
+    return testId;
+  } catch (error) {
+    console.error('Failed to save Text test:', error);
+    throw error;
+  }
+}
+
+export async function getAllTextTests(): Promise<TextTest[]> {
+  const db = await getDb();
+  const tests = await db.select<any[]>(`
+    SELECT
+      t.*,
+      a.id AS last_attempt_id,
+      a.score AS last_score,
+      a.total_questions AS last_total_questions,
+      a.duration_seconds AS last_duration_seconds,
+      a.attempted_at AS last_attempted_at
+    FROM text_tests t
+    LEFT JOIN text_test_attempts a ON a.id = (
+      SELECT id
+      FROM text_test_attempts
+      WHERE text_test_id = t.id
+      ORDER BY attempted_at DESC, id DESC
+      LIMIT 1
+    )
+    ORDER BY t.created_at DESC
+  `);
+
+  const result: TextTest[] = [];
+  for (const t of tests) {
+    result.push({
+      id: t.id,
+      name: t.name,
+      topicId: t.topic_id,
+      questions: [],
+      lastAttempt: t.last_attempt_id ? {
+        id: t.last_attempt_id,
+        textTestId: t.id,
+        score: t.last_score,
+        totalQuestions: t.last_total_questions,
+        durationSeconds: t.last_duration_seconds,
+        attemptedAt: t.last_attempted_at
+      } : null
+    });
+  }
+  return result;
+}
+
+export async function getTextTestsByTopic(topicId: number): Promise<TextTest[]> {
+  const db = await getDb();
+  const tests = await db.select<any[]>(`
+    SELECT
+      t.*,
+      a.id AS last_attempt_id,
+      a.score AS last_score,
+      a.total_questions AS last_total_questions,
+      a.duration_seconds AS last_duration_seconds,
+      a.attempted_at AS last_attempted_at
+    FROM text_tests t
+    LEFT JOIN text_test_attempts a ON a.id = (
+      SELECT id
+      FROM text_test_attempts
+      WHERE text_test_id = t.id
+      ORDER BY attempted_at DESC, id DESC
+      LIMIT 1
+    )
+    WHERE t.topic_id = $1
+    ORDER BY t.created_at DESC
+  `, [topicId]);
+
+  const result: TextTest[] = [];
+  for (const t of tests) {
+    result.push({
+      id: t.id,
+      name: t.name,
+      topicId: t.topic_id,
+      questions: [],
+      lastAttempt: t.last_attempt_id ? {
+        id: t.last_attempt_id,
+        textTestId: t.id,
+        score: t.last_score,
+        totalQuestions: t.last_total_questions,
+        durationSeconds: t.last_duration_seconds,
+        attemptedAt: t.last_attempted_at
+      } : null
+    });
+  }
+  return result;
+}
+
+export async function deleteTextTest(id: number) {
+  const db = await getDb();
+  await db.execute('DELETE FROM options WHERE question_id IN (SELECT id FROM questions WHERE text_test_id = $1)', [id]);
+  await db.execute('DELETE FROM questions WHERE text_test_id = $1', [id]);
+  await db.execute('DELETE FROM text_test_attempts WHERE text_test_id = $1', [id]);
+  await db.execute('DELETE FROM text_tests WHERE id = $1', [id]);
+}
+
+export async function updateTextTestName(id: number, name: string) {
+  const db = await getDb();
+  await db.execute('UPDATE text_tests SET name = $1 WHERE id = $2', [name, id]);
+}
+
+export async function getTextTestById(id: number): Promise<TextTest | null> {
+  const db = await getDb();
+  const tests = await db.select<any[]>('SELECT * FROM text_tests WHERE id = $1', [id]);
+  if (tests.length === 0) return null;
+  const t = tests[0];
+
+  const rawQuestions = await db.select<any[]>('SELECT * FROM questions WHERE text_test_id = $1 ORDER BY created_at ASC', [id]);
+  const questions: Question[] = [];
+  for (const rq of rawQuestions) {
+    const rawOptions = await db.select<any[]>('SELECT * FROM options WHERE question_id = $1', [rq.id]);
+    questions.push({
+      id: rq.id,
+      text: rq.text,
+      imagePath: rq.image_path,
+      topicId: rq.topic_id,
+      textTestId: rq.text_test_id,
+      options: await mapOptions(rawOptions)
+    });
+  }
+
+  return {
+    id: t.id,
+    name: t.name,
+    topicId: t.topic_id,
+    questions
+  };
 }

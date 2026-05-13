@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { getAllTopics, Topic, getPdfMaterialsByTopic, getPdfTestsByTopic, PdfMaterial, markPdfMaterialOpened, getAllPdfMaterials, getAllPdfTests, deletePdfMaterial, deletePdfTest, deleteTopic, updateTopicName, updatePdfMaterialName, updatePdfTestName } from '../lib/db';
+import { getAllTopics, Topic, getPdfMaterialsByTopic, getPdfTestsByTopic, PdfMaterial, markPdfMaterialOpened, getAllPdfMaterials, getAllPdfTests, deletePdfMaterial, deletePdfTest, deleteTopic, updateTopicName, updatePdfMaterialName, updatePdfTestName, TextTest, getTextTestsByTopic, getAllTextTests, deleteTextTest, updateTextTestName } from '../lib/db';
 import { PdfTest } from '../lib/db';
 import { ConfirmDialog } from './ConfirmDialog';
 import { EditNameDialog } from './EditNameDialog';
+
+type AppTest = (PdfTest | TextTest) & { type: 'pdf' | 'text' };
+
 interface TopicsManagerProps {
   onOpenMaterial?: (mat: PdfMaterial) => void;
-  onOpenTest?: (testId: number) => void;
+  onOpenTest?: (testId: number, testType: 'pdf' | 'text') => void;
 }
 
 export const TopicsManager: React.FC<TopicsManagerProps> = ({ onOpenMaterial, onOpenTest }) => {
@@ -13,19 +16,19 @@ export const TopicsManager: React.FC<TopicsManagerProps> = ({ onOpenMaterial, on
   const [selectedTopic, setSelectedTopic] = useState<Topic | null>(null);
   
   const [materials, setMaterials] = useState<PdfMaterial[]>([]);
-  const [tests, setTests] = useState<PdfTest[]>([]);
+  const [tests, setTests] = useState<AppTest[]>([]);
   
   const [loading, setLoading] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [allMaterials, setAllMaterials] = useState<PdfMaterial[]>([]);
-  const [allTests, setAllTests] = useState<PdfTest[]>([]);
+  const [allTests, setAllTests] = useState<AppTest[]>([]);
 
   // Confirm-dialog state
   type PendingDelete =
     | { type: 'topic'; id: number; name: string }
     | { type: 'material'; id: number; name: string }
-    | { type: 'test'; id: number; name: string }
+    | { type: 'test'; id: number; name: string; testType: 'pdf' | 'text' }
     | null;
   const [pendingDelete, setPendingDelete] = useState<PendingDelete>(null);
 
@@ -33,7 +36,7 @@ export const TopicsManager: React.FC<TopicsManagerProps> = ({ onOpenMaterial, on
   type PendingEdit =
     | { type: 'topic'; id: number; name: string }
     | { type: 'material'; id: number; name: string }
-    | { type: 'test'; id: number; name: string }
+    | { type: 'test'; id: number; name: string; testType: 'pdf' | 'text' }
     | null;
   const [pendingEdit, setPendingEdit] = useState<PendingEdit>(null);
 
@@ -44,12 +47,16 @@ export const TopicsManager: React.FC<TopicsManagerProps> = ({ onOpenMaterial, on
 
   const fetchAllData = async () => {
     try {
-      const [mats, tsts] = await Promise.all([
+      const [mats, ptsts, ttsts] = await Promise.all([
         getAllPdfMaterials(),
-        getAllPdfTests()
+        getAllPdfTests(),
+        getAllTextTests()
       ]);
       setAllMaterials(mats);
-      setAllTests(tsts);
+      setAllTests([
+        ...ptsts.map(t => ({ ...t, type: 'pdf' as const })),
+        ...ttsts.map(t => ({ ...t, type: 'text' as const }))
+      ]);
     } catch (e) {
       console.error(e);
     }
@@ -73,12 +80,16 @@ export const TopicsManager: React.FC<TopicsManagerProps> = ({ onOpenMaterial, on
   const fetchTopicData = async (topicId: number) => {
     setLoading(true);
     try {
-      const [mats, tsts] = await Promise.all([
+      const [mats, ptsts, ttsts] = await Promise.all([
         getPdfMaterialsByTopic(topicId),
-        getPdfTestsByTopic(topicId)
+        getPdfTestsByTopic(topicId),
+        getTextTestsByTopic(topicId)
       ]);
       setMaterials(mats);
-      setTests(tsts);
+      setTests([
+        ...ptsts.map(t => ({ ...t, type: 'pdf' as const })),
+        ...ttsts.map(t => ({ ...t, type: 'text' as const }))
+      ]);
     } catch (error) {
       console.error('Failed to fetch topic data:', error);
     } finally {
@@ -103,9 +114,9 @@ export const TopicsManager: React.FC<TopicsManagerProps> = ({ onOpenMaterial, on
     setPendingDelete({ type: 'material', id, name });
   };
 
-  const handleDeleteTest = (e: React.MouseEvent, id: number, name: string) => {
+  const handleDeleteTest = (e: React.MouseEvent, id: number, name: string, testType: 'pdf' | 'text') => {
     e.stopPropagation();
-    setPendingDelete({ type: 'test', id, name });
+    setPendingDelete({ type: 'test', id, name, testType });
   };
 
   const handleDeleteTopic = (e: React.MouseEvent, id: number, name: string) => {
@@ -121,7 +132,11 @@ export const TopicsManager: React.FC<TopicsManagerProps> = ({ onOpenMaterial, on
         if (selectedTopic) fetchTopicData(selectedTopic.id);
         fetchAllData();
       } else if (pendingDelete.type === 'test') {
-        await deletePdfTest(pendingDelete.id);
+        if (pendingDelete.testType === 'pdf') {
+          await deletePdfTest(pendingDelete.id);
+        } else {
+          await deleteTextTest(pendingDelete.id);
+        }
         if (selectedTopic) fetchTopicData(selectedTopic.id);
         fetchAllData();
       } else if (pendingDelete.type === 'topic') {
@@ -155,7 +170,11 @@ export const TopicsManager: React.FC<TopicsManagerProps> = ({ onOpenMaterial, on
         if (selectedTopic) fetchTopicData(selectedTopic.id);
         fetchAllData();
       } else if (pendingEdit.type === 'test') {
-        await updatePdfTestName(pendingEdit.id, newName);
+        if (pendingEdit.testType === 'pdf') {
+          await updatePdfTestName(pendingEdit.id, newName);
+        } else {
+          await updateTextTestName(pendingEdit.id, newName);
+        }
         if (selectedTopic) fetchTopicData(selectedTopic.id);
         fetchAllData();
       }
@@ -225,7 +244,7 @@ export const TopicsManager: React.FC<TopicsManagerProps> = ({ onOpenMaterial, on
         onSave={executeEdit}
         onCancel={() => setPendingEdit(null)}
       />
-    <div className="w-full max-w-5xl mx-auto flex flex-col gap-6 h-[75vh]">
+    <div className="w-full mx-auto flex flex-col gap-6 h-[85vh]">
       {/* Global Search Bar */}
       <div className="w-full bg-sky-50 border border-sky-200 rounded-2xl shadow-xl p-4 flex items-center">
         <input 
@@ -316,15 +335,20 @@ export const TopicsManager: React.FC<TopicsManagerProps> = ({ onOpenMaterial, on
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {filteredTests.map(test => (
                         <div
-                          key={test.id}
+                          key={`${test.type}-${test.id}`}
                           className="relative p-5 text-left bg-white hover:bg-sky-100 border border-sky-200 rounded-2xl transition-all group flex flex-col gap-3 h-full"
                         >
                           <button
-                            onClick={() => onOpenTest && test.id && onOpenTest(test.id)}
+                            onClick={() => onOpenTest && test.id && onOpenTest(test.id, test.type)}
                             className="w-full text-left flex flex-col gap-1 flex-1"
                           >
                             <div className="w-full flex justify-between items-start gap-4">
-                              <h4 className="text-zinc-900 font-bold text-lg group-hover:text-sky-600 transition-colors line-clamp-2">{test.name}</h4>
+                              <h4 className="text-zinc-900 font-bold text-lg group-hover:text-sky-600 transition-colors line-clamp-2">
+                                {test.name}
+                                <span className={`ml-2 px-1.5 py-0.5 text-[8px] rounded uppercase font-black align-middle ${test.type === 'pdf' ? 'bg-sky-100 text-sky-600' : 'bg-indigo-100 text-indigo-600'}`}>
+                                  {test.type}
+                                </span>
+                              </h4>
                               <span className="shrink-0 px-2 py-1 bg-sky-100 border border-sky-300 text-zinc-600 text-[9px] rounded-lg uppercase font-black">{getTopicName(test.topicId)}</span>
                             </div>
                             <div className="mt-auto w-full pt-2">
@@ -340,12 +364,12 @@ export const TopicsManager: React.FC<TopicsManagerProps> = ({ onOpenMaterial, on
                           {test.id && (
                             <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                               <button
-                                onClick={(e) => { e.stopPropagation(); setPendingEdit({ type: 'test', id: test.id!, name: test.name }); }}
+                                onClick={(e) => { e.stopPropagation(); setPendingEdit({ type: 'test', id: test.id!, name: test.name, testType: test.type }); }}
                                 className="w-6 h-6 flex items-center justify-center rounded-lg bg-sky-200/50 hover:bg-sky-200 text-zinc-300 text-xs font-black"
                                 title="Rename test"
                               >✎</button>
                               <button
-                                onClick={(e) => handleDeleteTest(e, test.id!, test.name)}
+                                onClick={(e) => handleDeleteTest(e, test.id!, test.name, test.type)}
                                 className="w-6 h-6 flex items-center justify-center rounded-lg bg-red-500/10 hover:bg-red-500/30 text-red-600 text-xs font-black"
                                 title="Delete test"
                               >✕</button>
@@ -493,14 +517,19 @@ export const TopicsManager: React.FC<TopicsManagerProps> = ({ onOpenMaterial, on
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         {tests.map(test => (
                           <div
-                            key={test.id}
+                            key={`${test.type}-${test.id}`}
                             className="relative p-4 text-left bg-white hover:bg-sky-100 border border-sky-200 rounded-2xl transition-all group"
                           >
                             <button
-                              onClick={() => onOpenTest && test.id && onOpenTest(test.id)}
+                              onClick={() => onOpenTest && test.id && onOpenTest(test.id, test.type)}
                               className="w-full text-left"
                             >
-                              <h4 className="text-zinc-900 font-bold group-hover:text-sky-600 transition-colors pr-6">{test.name}</h4>
+                              <h4 className="text-zinc-900 font-bold group-hover:text-sky-600 transition-colors pr-6">
+                                {test.name}
+                                <span className={`ml-2 px-1.5 py-0.5 text-[8px] rounded uppercase font-black align-middle ${test.type === 'pdf' ? 'bg-sky-100 text-sky-600' : 'bg-indigo-100 text-indigo-600'}`}>
+                                  {test.type}
+                                </span>
+                              </h4>
                               {test.lastAttempt ? (
                                 <p className="text-zinc-600 text-[10px] mt-2 uppercase tracking-widest">
                                   Last: {formatDate(test.lastAttempt.attemptedAt)} • Score: {test.lastAttempt.score}/{test.lastAttempt.totalQuestions}
@@ -512,12 +541,12 @@ export const TopicsManager: React.FC<TopicsManagerProps> = ({ onOpenMaterial, on
                             {test.id && (
                               <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <button
-                                  onClick={(e) => { e.stopPropagation(); setPendingEdit({ type: 'test', id: test.id!, name: test.name }); }}
+                                  onClick={(e) => { e.stopPropagation(); setPendingEdit({ type: 'test', id: test.id!, name: test.name, testType: test.type }); }}
                                   className="w-6 h-6 flex items-center justify-center rounded-lg bg-sky-200/50 hover:bg-sky-200 text-zinc-300 text-xs font-black"
                                   title="Rename test"
                                 >✎</button>
                                 <button
-                                  onClick={(e) => handleDeleteTest(e, test.id!, test.name)}
+                                  onClick={(e) => handleDeleteTest(e, test.id!, test.name, test.type)}
                                   className="w-6 h-6 flex items-center justify-center rounded-lg bg-red-500/10 hover:bg-red-500/30 text-red-600 text-xs font-black"
                                   title="Delete test"
                                 >✕</button>
