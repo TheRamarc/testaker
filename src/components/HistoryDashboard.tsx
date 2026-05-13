@@ -44,12 +44,12 @@ export const HistoryDashboard: React.FC<HistoryDashboardProps> = ({ onOpenMateri
   return (
     <div className="w-full max-w-5xl mx-auto space-y-12">
       <section>
-        <h2 className="text-2xl font-black text-white uppercase tracking-tight mb-6 flex items-center gap-3">
+        <h2 className="text-2xl font-black text-zinc-900 uppercase tracking-tight mb-6 flex items-center gap-3">
           <span className="w-2 h-8 bg-blue-500 rounded-full inline-block"></span>
           Recent Tests
         </h2>
         {tests.length === 0 ? (
-          <div className="p-8 border border-zinc-800 rounded-2xl bg-zinc-900/50 text-center text-zinc-500 font-bold">
+          <div className="p-8 border border-sky-200 rounded-2xl bg-sky-50 text-center text-zinc-500 font-bold">
             No tests taken yet.
           </div>
         ) : (
@@ -58,9 +58,9 @@ export const HistoryDashboard: React.FC<HistoryDashboardProps> = ({ onOpenMateri
               <button 
                 key={t.id} 
                 onClick={() => onOpenTest && t.pdfTestId && onOpenTest(t.pdfTestId)}
-                className="p-5 text-left bg-zinc-950 hover:bg-zinc-800 transition-all border border-zinc-800 rounded-2xl flex flex-col gap-2 group"
+                className="p-5 text-left bg-white hover:bg-sky-100 transition-all border border-sky-200 rounded-2xl flex flex-col gap-2 group"
               >
-                <h3 className="text-white font-bold text-lg truncate group-hover:text-blue-400">{t.testName}</h3>
+                <h3 className="text-zinc-900 font-bold text-lg truncate group-hover:text-sky-600">{t.testName}</h3>
                 <div className="flex justify-between items-center mt-2 w-full">
                   <span className="px-2 py-1 bg-blue-500/10 text-blue-400 rounded-md text-[10px] font-black uppercase tracking-wider">
                     Score: {t.score}/{t.totalQuestions}
@@ -76,12 +76,12 @@ export const HistoryDashboard: React.FC<HistoryDashboardProps> = ({ onOpenMateri
       </section>
 
       <section>
-        <h2 className="text-2xl font-black text-white uppercase tracking-tight mb-6 flex items-center gap-3">
+        <h2 className="text-2xl font-black text-zinc-900 uppercase tracking-tight mb-6 flex items-center gap-3">
           <span className="w-2 h-8 bg-indigo-500 rounded-full inline-block"></span>
           Recent Materials
         </h2>
         {materials.length === 0 ? (
-          <div className="p-8 border border-zinc-800 rounded-2xl bg-zinc-900/50 text-center text-zinc-500 font-bold">
+          <div className="p-8 border border-sky-200 rounded-2xl bg-sky-50 text-center text-zinc-500 font-bold">
             No materials opened yet.
           </div>
         ) : (
@@ -90,9 +90,9 @@ export const HistoryDashboard: React.FC<HistoryDashboardProps> = ({ onOpenMateri
               <button 
                 key={m.id} 
                 onClick={() => onOpenMaterial && onOpenMaterial(m)}
-                className="p-5 text-left bg-zinc-950 hover:bg-zinc-800 transition-all border border-zinc-800 rounded-2xl flex flex-col gap-2 group"
+                className="p-5 text-left bg-white hover:bg-sky-100 transition-all border border-sky-200 rounded-2xl flex flex-col gap-2 group"
               >
-                <h3 className="text-white font-bold text-lg truncate group-hover:text-indigo-400">{m.name}</h3>
+                <h3 className="text-zinc-900 font-bold text-lg truncate group-hover:text-sky-600">{m.name}</h3>
                 <div className="flex justify-between items-center mt-2 w-full">
                   <span className="px-2 py-1 bg-indigo-500/10 text-indigo-400 rounded-md text-[10px] font-black uppercase tracking-wider">
                     Material

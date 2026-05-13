@@ -40,11 +40,11 @@ export const EditNameDialog: React.FC<EditNameDialogProps> = ({
       onClick={onCancel}
     >
       <div
-        className="bg-zinc-900 border border-zinc-700 rounded-2xl shadow-2xl p-8 w-full max-w-sm mx-4 flex flex-col gap-5"
+        className="bg-white border border-sky-200 rounded-2xl shadow-2xl p-8 w-full max-w-sm mx-4 flex flex-col gap-5"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="text-center">
-          <h3 className="text-white font-black text-lg tracking-tight mb-1">{title}</h3>
+          <h3 className="text-zinc-900 font-black text-lg tracking-tight mb-1">{title}</h3>
           <p className="text-zinc-500 text-xs uppercase tracking-widest">Enter new name</p>
         </div>
 
@@ -54,14 +54,14 @@ export const EditNameDialog: React.FC<EditNameDialogProps> = ({
             type="text"
             value={value}
             onChange={(e) => setValue(e.target.value)}
-            className="w-full px-4 py-3 bg-zinc-950 border border-zinc-700 rounded-xl text-white font-bold outline-none focus:border-blue-500 transition-colors"
+            className="w-full px-4 py-3 bg-white border border-sky-300 rounded-xl text-zinc-900 font-bold outline-none focus:border-blue-500 transition-colors"
             placeholder="New name..."
           />
           <div className="flex gap-3 mt-1">
             <button
               type="button"
               onClick={onCancel}
-              className="flex-1 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold text-sm transition-all border border-zinc-700"
+              className="flex-1 py-2.5 rounded-xl bg-sky-50 hover:bg-sky-100 text-zinc-700 font-bold text-sm transition-all border border-sky-300"
             >
               Cancel
             </button>

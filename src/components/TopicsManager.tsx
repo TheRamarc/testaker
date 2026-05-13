@@ -227,25 +227,25 @@ export const TopicsManager: React.FC<TopicsManagerProps> = ({ onOpenMaterial, on
       />
     <div className="w-full max-w-5xl mx-auto flex flex-col gap-6 h-[75vh]">
       {/* Global Search Bar */}
-      <div className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl shadow-xl p-4 flex items-center">
+      <div className="w-full bg-sky-50 border border-sky-200 rounded-2xl shadow-xl p-4 flex items-center">
         <input 
           type="text" 
           placeholder="Search all materials and tests by name..." 
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full bg-transparent text-white outline-none font-bold placeholder:text-zinc-600"
+          className="w-full bg-transparent text-black outline-none font-bold placeholder:text-zinc-600"
         />
         {searchQuery && (
-          <button onClick={() => setSearchQuery('')} className="text-zinc-500 hover:text-white font-bold text-xs ml-4 tracking-widest">
+          <button onClick={() => setSearchQuery('')} className="text-zinc-500 hover:text-zinc-900 font-bold text-xs ml-4 tracking-widest">
             CLEAR
           </button>
         )}
       </div>
 
       {isSearching ? (
-        <div className="flex-1 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-xl overflow-hidden flex flex-col min-h-0">
-          <div className="p-6 border-b border-zinc-800 flex justify-between items-center bg-zinc-950/50">
-            <h2 className="text-2xl font-black text-white tracking-tight">Search Results for "{searchQuery}"</h2>
+        <div className="flex-1 bg-sky-50 border border-sky-200 rounded-2xl shadow-xl overflow-hidden flex flex-col min-h-0">
+          <div className="p-6 border-b border-sky-200 flex justify-between items-center bg-sky-100/50">
+            <h2 className="text-2xl font-black text-zinc-800 tracking-tight">Search Results for "{searchQuery}"</h2>
           </div>
           <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
             {filteredMaterials.length === 0 && filteredTests.length === 0 ? (
@@ -254,7 +254,7 @@ export const TopicsManager: React.FC<TopicsManagerProps> = ({ onOpenMaterial, on
               <>
                 {filteredMaterials.length > 0 && (
                   <section>
-                    <h3 className="text-lg font-black text-white uppercase tracking-widest text-zinc-400 mb-4 flex items-center gap-2">
+                    <h3 className="text-lg font-black text-zinc-900 uppercase tracking-widest text-zinc-600 mb-4 flex items-center gap-2">
                       <span className="w-2 h-6 bg-indigo-500 rounded-full inline-block"></span>
                       Materials
                     </h3>
@@ -262,19 +262,19 @@ export const TopicsManager: React.FC<TopicsManagerProps> = ({ onOpenMaterial, on
                       {filteredMaterials.map(mat => (
                         <div
                           key={mat.id}
-                          className="relative p-5 text-left bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 rounded-2xl transition-all group flex flex-col gap-3 h-full"
+                          className="relative p-5 text-left bg-white hover:bg-sky-100 border border-sky-200 rounded-2xl transition-all group flex flex-col gap-3 h-full"
                         >
                           <button
                             onClick={() => handleOpenMaterial(mat)}
                             className="w-full text-left flex flex-col gap-1 flex-1"
                           >
                             <div className="w-full flex justify-between items-start gap-4">
-                              <h4 className="text-white font-bold text-lg group-hover:text-blue-400 transition-colors line-clamp-2">{mat.name}</h4>
-                              <span className="shrink-0 px-2 py-1 bg-zinc-800 border border-zinc-700 text-zinc-400 text-[9px] rounded-lg uppercase font-black">{getTopicName(mat.topicId)}</span>
+                              <h4 className="text-zinc-900 font-bold text-lg group-hover:text-sky-600 transition-colors line-clamp-2">{mat.name}</h4>
+                              <span className="shrink-0 px-2 py-1 bg-sky-100 border border-sky-300 text-zinc-600 text-[9px] rounded-lg uppercase font-black">{getTopicName(mat.topicId)}</span>
                             </div>
                             <div className="mt-auto w-full pt-2 flex flex-col gap-0.5">
                               {mat.last_opened_at ? (
-                                <p className="text-zinc-400 text-[10px] uppercase tracking-widest font-bold">
+                                <p className="text-zinc-600 text-[10px] uppercase tracking-widest font-bold">
                                   Last opened: {formatDate(mat.last_opened_at)}
                                 </p>
                               ) : (
@@ -291,12 +291,12 @@ export const TopicsManager: React.FC<TopicsManagerProps> = ({ onOpenMaterial, on
                             <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                               <button
                                 onClick={(e) => { e.stopPropagation(); setPendingEdit({ type: 'material', id: mat.id!, name: mat.name }); }}
-                                className="w-6 h-6 flex items-center justify-center rounded-lg bg-zinc-700/50 hover:bg-zinc-600 text-zinc-300 text-xs font-black"
+                                className="w-6 h-6 flex items-center justify-center rounded-lg bg-sky-200/50 hover:bg-sky-200 text-zinc-300 text-xs font-black"
                                 title="Rename material"
                               >✎</button>
                               <button
                                 onClick={(e) => handleDeleteMaterial(e, mat.id!, mat.name)}
-                                className="w-6 h-6 flex items-center justify-center rounded-lg bg-red-500/10 hover:bg-red-500/30 text-red-500 text-xs font-black"
+                                className="w-6 h-6 flex items-center justify-center rounded-lg bg-red-500/10 hover:bg-red-500/30 text-red-600 text-xs font-black"
                                 title="Delete material"
                               >✕</button>
                             </div>
@@ -306,10 +306,10 @@ export const TopicsManager: React.FC<TopicsManagerProps> = ({ onOpenMaterial, on
                     </div>
                   </section>
                 )}
-                {filteredMaterials.length > 0 && filteredTests.length > 0 && <hr className="border-zinc-800" />}
+                {filteredMaterials.length > 0 && filteredTests.length > 0 && <hr className="border-sky-200" />}
                 {filteredTests.length > 0 && (
                   <section>
-                    <h3 className="text-lg font-black text-white uppercase tracking-widest text-zinc-400 mb-4 flex items-center gap-2">
+                    <h3 className="text-lg font-black text-zinc-900 uppercase tracking-widest text-zinc-600 mb-4 flex items-center gap-2">
                       <span className="w-2 h-6 bg-blue-500 rounded-full inline-block"></span>
                       Tests
                     </h3>
@@ -317,19 +317,19 @@ export const TopicsManager: React.FC<TopicsManagerProps> = ({ onOpenMaterial, on
                       {filteredTests.map(test => (
                         <div
                           key={test.id}
-                          className="relative p-5 text-left bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 rounded-2xl transition-all group flex flex-col gap-3 h-full"
+                          className="relative p-5 text-left bg-white hover:bg-sky-100 border border-sky-200 rounded-2xl transition-all group flex flex-col gap-3 h-full"
                         >
                           <button
                             onClick={() => onOpenTest && test.id && onOpenTest(test.id)}
                             className="w-full text-left flex flex-col gap-1 flex-1"
                           >
                             <div className="w-full flex justify-between items-start gap-4">
-                              <h4 className="text-white font-bold text-lg group-hover:text-blue-400 transition-colors line-clamp-2">{test.name}</h4>
-                              <span className="shrink-0 px-2 py-1 bg-zinc-800 border border-zinc-700 text-zinc-400 text-[9px] rounded-lg uppercase font-black">{getTopicName(test.topicId)}</span>
+                              <h4 className="text-zinc-900 font-bold text-lg group-hover:text-sky-600 transition-colors line-clamp-2">{test.name}</h4>
+                              <span className="shrink-0 px-2 py-1 bg-sky-100 border border-sky-300 text-zinc-600 text-[9px] rounded-lg uppercase font-black">{getTopicName(test.topicId)}</span>
                             </div>
                             <div className="mt-auto w-full pt-2">
                               {test.lastAttempt ? (
-                                <p className="text-zinc-400 text-[10px] uppercase tracking-widest font-bold">
+                                <p className="text-zinc-600 text-[10px] uppercase tracking-widest font-bold">
                                   Last: {formatDate(test.lastAttempt.attemptedAt)} • Score: {test.lastAttempt.score}/{test.lastAttempt.totalQuestions}
                                 </p>
                               ) : (
@@ -341,12 +341,12 @@ export const TopicsManager: React.FC<TopicsManagerProps> = ({ onOpenMaterial, on
                             <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                               <button
                                 onClick={(e) => { e.stopPropagation(); setPendingEdit({ type: 'test', id: test.id!, name: test.name }); }}
-                                className="w-6 h-6 flex items-center justify-center rounded-lg bg-zinc-700/50 hover:bg-zinc-600 text-zinc-300 text-xs font-black"
+                                className="w-6 h-6 flex items-center justify-center rounded-lg bg-sky-200/50 hover:bg-sky-200 text-zinc-300 text-xs font-black"
                                 title="Rename test"
                               >✎</button>
                               <button
                                 onClick={(e) => handleDeleteTest(e, test.id!, test.name)}
-                                className="w-6 h-6 flex items-center justify-center rounded-lg bg-red-500/10 hover:bg-red-500/30 text-red-500 text-xs font-black"
+                                className="w-6 h-6 flex items-center justify-center rounded-lg bg-red-500/10 hover:bg-red-500/30 text-red-600 text-xs font-black"
                                 title="Delete test"
                               >✕</button>
                             </div>
@@ -363,9 +363,9 @@ export const TopicsManager: React.FC<TopicsManagerProps> = ({ onOpenMaterial, on
       ) : (
         <div className="flex gap-6 flex-1 min-h-0">
       {/* Topics List Sidebar */}
-      <div className="w-1/3 flex flex-col bg-zinc-900 border border-zinc-800 rounded-2xl shadow-xl overflow-hidden">
-        <div className="p-6 border-b border-zinc-800">
-          <h2 className="text-xl font-black text-white tracking-tight uppercase">Topics</h2>
+      <div className="w-1/3 flex flex-col bg-sky-50 border border-sky-200 rounded-2xl shadow-xl overflow-hidden">
+        <div className="p-6 border-b border-sky-200">
+          <h2 className="text-xl font-black text-zinc-900 tracking-tight uppercase">Topics</h2>
         </div>
         <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
           {topics.length === 0 ? (
@@ -381,7 +381,7 @@ export const TopicsManager: React.FC<TopicsManagerProps> = ({ onOpenMaterial, on
                   className={`flex-1 text-left px-4 py-3 rounded-xl transition-all font-bold pr-16 ${
                     selectedTopic?.id === topic.id
                       ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
-                      : 'bg-zinc-950 text-zinc-400 hover:bg-zinc-800 hover:text-white border border-zinc-800'
+                      : 'bg-white text-zinc-600 hover:bg-sky-100 hover:text-zinc-900 border border-sky-200'
                   }`}
                 >
                   {topic.name}
@@ -389,12 +389,12 @@ export const TopicsManager: React.FC<TopicsManagerProps> = ({ onOpenMaterial, on
                 <div className="absolute right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
                     onClick={(e) => { e.stopPropagation(); setPendingEdit({ type: 'topic', id: topic.id, name: topic.name }); }}
-                    className="w-6 h-6 flex items-center justify-center rounded-lg bg-zinc-700/50 hover:bg-zinc-600 text-zinc-300 text-xs font-black"
+                    className="w-6 h-6 flex items-center justify-center rounded-lg bg-sky-200/50 hover:bg-sky-200 text-zinc-300 text-xs font-black"
                     title="Rename topic"
                   >✎</button>
                   <button
                     onClick={(e) => handleDeleteTopic(e, topic.id, topic.name)}
-                    className="w-6 h-6 flex items-center justify-center rounded-lg bg-red-500/10 hover:bg-red-500/30 text-red-500 text-xs font-black"
+                    className="w-6 h-6 flex items-center justify-center rounded-lg bg-red-500/10 hover:bg-red-500/30 text-red-600 text-xs font-black"
                     title="Delete topic"
                   >✕</button>
                 </div>
@@ -405,17 +405,17 @@ export const TopicsManager: React.FC<TopicsManagerProps> = ({ onOpenMaterial, on
       </div>
 
       {/* Topic Content Area */}
-      <div className="flex-1 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-xl overflow-hidden flex flex-col">
+      <div className="flex-1 bg-sky-50 border border-sky-200 rounded-2xl shadow-xl overflow-hidden flex flex-col">
         {!selectedTopic ? (
           <div className="flex-1 flex items-center justify-center text-zinc-500 font-bold">
             Select a topic to view materials and tests
           </div>
         ) : (
           <div className="flex-1 flex flex-col h-full overflow-hidden">
-            <div className="p-6 border-b border-zinc-800 flex justify-between items-center bg-zinc-950/50">
-              <h2 className="text-2xl font-black text-white tracking-tight">{selectedTopic.name}</h2>
+            <div className="p-6 border-b border-sky-200 flex justify-between items-center bg-sky-100/50">
+              <h2 className="text-2xl font-black text-zinc-900 tracking-tight">{selectedTopic.name}</h2>
             </div>
-            
+
             <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
               {loading ? (
                 <div className="text-center text-zinc-500 py-12">Loading...</div>
@@ -424,11 +424,11 @@ export const TopicsManager: React.FC<TopicsManagerProps> = ({ onOpenMaterial, on
                   {/* Study Materials Section */}
                   <section>
                     <div className="mb-4">
-                      <h3 className="text-lg font-black text-white uppercase tracking-widest text-zinc-400">Study Materials</h3>
+                      <h3 className="text-lg font-black text-zinc-900 uppercase tracking-widest text-zinc-800">Study Materials</h3>
                     </div>
                     
                     {materials.length === 0 ? (
-                      <div className="p-8 border-2 border-dashed border-zinc-800 rounded-2xl text-center">
+                      <div className="p-8 border-2 border-dashed border-sky-200 rounded-2xl text-center">
                         <p className="text-zinc-500 text-sm">No materials added yet.</p>
                       </div>
                     ) : (
@@ -436,15 +436,15 @@ export const TopicsManager: React.FC<TopicsManagerProps> = ({ onOpenMaterial, on
                         {materials.map(mat => (
                           <div
                             key={mat.id}
-                            className="relative p-4 text-left bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 rounded-2xl transition-all group"
+                            className="relative p-4 text-left bg-sky-50 border border-sky-200 rounded-2xl transition-all group"
                           >
                             <button
                               onClick={() => handleOpenMaterial(mat)}
                               className="w-full text-left"
                             >
-                              <h4 className="text-white font-bold group-hover:text-blue-400 transition-colors pr-6">{mat.name}</h4>
+                              <h4 className="text-zinc-900 font-bold group-hover:text-sky-600 transition-colors pr-6">{mat.name}</h4>
                               {mat.last_opened_at ? (
-                                <p className="text-zinc-400 text-[10px] mt-2 uppercase tracking-widest">
+                                <p className="text-zinc-600 text-[10px] mt-2 uppercase tracking-widest">
                                   Last opened: {formatDate(mat.last_opened_at)}
                                 </p>
                               ) : (
@@ -460,12 +460,12 @@ export const TopicsManager: React.FC<TopicsManagerProps> = ({ onOpenMaterial, on
                               <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <button
                                   onClick={(e) => { e.stopPropagation(); setPendingEdit({ type: 'material', id: mat.id!, name: mat.name }); }}
-                                  className="w-6 h-6 flex items-center justify-center rounded-lg bg-zinc-700/50 hover:bg-zinc-600 text-zinc-300 text-xs font-black"
+                                  className="w-6 h-6 flex items-center justify-center rounded-lg bg-sky-200/50 hover:bg-sky-200 text-zinc-300 text-xs font-black"
                                   title="Rename material"
                                 >✎</button>
                                 <button
                                   onClick={(e) => handleDeleteMaterial(e, mat.id!, mat.name)}
-                                  className="w-6 h-6 flex items-center justify-center rounded-lg bg-red-500/10 hover:bg-red-500/30 text-red-500 text-xs font-black"
+                                  className="w-6 h-6 flex items-center justify-center rounded-lg bg-red-500/10 hover:bg-red-500/30 text-red-600 text-xs font-black"
                                   title="Delete material"
                                 >✕</button>
                               </div>
@@ -476,17 +476,17 @@ export const TopicsManager: React.FC<TopicsManagerProps> = ({ onOpenMaterial, on
                     )}
                   </section>
 
-                  <hr className="border-zinc-800" />
+                  <hr className="border-sky-200" />
 
                   {/* Tests Section */}
                   <section>
                     <div className="mb-4">
-                      <h3 className="text-lg font-black text-white uppercase tracking-widest text-zinc-400">Tests</h3>
+                      <h3 className="text-lg font-black text-zinc-900 uppercase tracking-widest text-zinc-600">Tests</h3>
                       <p className="text-xs text-zinc-500 mt-1">Tests registered under this topic.</p>
                     </div>
                     
                     {tests.length === 0 ? (
-                      <div className="p-8 border-2 border-dashed border-zinc-800 rounded-2xl text-center">
+                      <div className="p-8 border-2 border-dashed border-sky-200 rounded-2xl text-center">
                         <p className="text-zinc-500 text-sm">No tests registered yet.</p>
                       </div>
                     ) : (
@@ -494,15 +494,15 @@ export const TopicsManager: React.FC<TopicsManagerProps> = ({ onOpenMaterial, on
                         {tests.map(test => (
                           <div
                             key={test.id}
-                            className="relative p-4 text-left bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 rounded-2xl transition-all group"
+                            className="relative p-4 text-left bg-white hover:bg-sky-100 border border-sky-200 rounded-2xl transition-all group"
                           >
                             <button
                               onClick={() => onOpenTest && test.id && onOpenTest(test.id)}
                               className="w-full text-left"
                             >
-                              <h4 className="text-white font-bold group-hover:text-blue-400 transition-colors pr-6">{test.name}</h4>
+                              <h4 className="text-zinc-900 font-bold group-hover:text-sky-600 transition-colors pr-6">{test.name}</h4>
                               {test.lastAttempt ? (
-                                <p className="text-zinc-400 text-[10px] mt-2 uppercase tracking-widest">
+                                <p className="text-zinc-600 text-[10px] mt-2 uppercase tracking-widest">
                                   Last: {formatDate(test.lastAttempt.attemptedAt)} • Score: {test.lastAttempt.score}/{test.lastAttempt.totalQuestions}
                                 </p>
                               ) : (
@@ -513,12 +513,12 @@ export const TopicsManager: React.FC<TopicsManagerProps> = ({ onOpenMaterial, on
                               <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <button
                                   onClick={(e) => { e.stopPropagation(); setPendingEdit({ type: 'test', id: test.id!, name: test.name }); }}
-                                  className="w-6 h-6 flex items-center justify-center rounded-lg bg-zinc-700/50 hover:bg-zinc-600 text-zinc-300 text-xs font-black"
+                                  className="w-6 h-6 flex items-center justify-center rounded-lg bg-sky-200/50 hover:bg-sky-200 text-zinc-300 text-xs font-black"
                                   title="Rename test"
                                 >✎</button>
                                 <button
                                   onClick={(e) => handleDeleteTest(e, test.id!, test.name)}
-                                  className="w-6 h-6 flex items-center justify-center rounded-lg bg-red-500/10 hover:bg-red-500/30 text-red-500 text-xs font-black"
+                                  className="w-6 h-6 flex items-center justify-center rounded-lg bg-red-500/10 hover:bg-red-500/30 text-red-600 text-xs font-black"
                                   title="Delete test"
                                 >✕</button>
                               </div>

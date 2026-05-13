@@ -25,7 +25,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
       onClick={onCancel}
     >
       <div
-        className="bg-zinc-900 border border-zinc-700 rounded-2xl shadow-2xl p-8 w-full max-w-sm mx-4 flex flex-col gap-5"
+        className="bg-white border border-sky-200 rounded-2xl shadow-2xl p-8 w-full max-w-sm mx-4 flex flex-col gap-5"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Icon */}
@@ -35,15 +35,15 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
 
         {/* Text */}
         <div className="text-center">
-          <h3 className="text-white font-black text-lg tracking-tight mb-2">{title}</h3>
-          <p className="text-zinc-400 text-sm leading-relaxed">{message}</p>
+          <h3 className="text-zinc-900 font-black text-lg tracking-tight mb-2">{title}</h3>
+          <p className="text-zinc-600 text-sm leading-relaxed">{message}</p>
         </div>
 
         {/* Actions */}
         <div className="flex gap-3 mt-1">
           <button
             onClick={onCancel}
-            className="flex-1 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold text-sm transition-all border border-zinc-700"
+            className="flex-1 py-2.5 rounded-xl bg-sky-50 hover:bg-sky-100 text-zinc-700 font-bold text-sm transition-all border border-sky-300"
           >
             Cancel
           </button>

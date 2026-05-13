@@ -107,8 +107,8 @@ export const PdfMaterialViewer: React.FC<Props> = ({ material, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black flex overflow-hidden z-50">
-      <div className="relative flex-1 min-w-0 bg-zinc-950 border-r border-zinc-800 overflow-hidden">
+    <div className="fixed inset-0 bg-sky-50 flex overflow-hidden z-50">
+      <div className="relative flex-1 min-w-0 bg-sky-50 border-r border-sky-200 overflow-hidden">
         <div className="absolute top-4 left-4 z-20 flex gap-4 items-center">
           <button
             onClick={handleExit}
@@ -116,16 +116,16 @@ export const PdfMaterialViewer: React.FC<Props> = ({ material, onClose }) => {
           >
             ← EXIT MATERIAL
           </button>
-          <div className="bg-black/60 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 text-white text-xs font-black">
+          <div className="bg-white/80 backdrop-blur-md px-4 py-2 rounded-full border border-sky-200 text-zinc-900 text-xs font-black">
             {material.name} • {loadingPages ? 'Loading...' : `${pageImages.length} Pages`}
           </div>
         </div>
 
-        <div className="absolute top-4 right-4 z-20 flex items-center gap-2 bg-black/60 backdrop-blur-md p-1 rounded-full border border-white/10">
+        <div className="absolute top-4 right-4 z-20 flex items-center gap-2 bg-white/80 backdrop-blur-md p-1 rounded-full border border-sky-200">
           <button
             type="button"
             onClick={() => adjustZoom(-2)}
-            className="w-8 h-8 rounded-full text-white bg-white/10 hover:bg-white/20 text-lg leading-none font-black"
+            className="w-8 h-8 rounded-full text-zinc-900 bg-black/5 hover:bg-black/10 text-lg leading-none font-black"
             title="Zoom out"
           >
             -
@@ -137,13 +137,13 @@ export const PdfMaterialViewer: React.FC<Props> = ({ material, onClose }) => {
             step="2"
             value={pdfZoom}
             onChange={(e) => updateZoom(Number(e.target.value) || 100)}
-            className="w-16 h-8 rounded-full bg-zinc-900 text-white text-center text-[11px] font-black outline-none border border-white/10 focus:border-blue-500"
+            className="w-16 h-8 rounded-full bg-white text-zinc-900 text-center text-[11px] font-black outline-none border border-sky-200 focus:border-blue-500"
             title="Zoom percentage"
           />
           <button
             type="button"
             onClick={() => adjustZoom(2)}
-            className="w-8 h-8 rounded-full text-white bg-white/10 hover:bg-white/20 text-lg leading-none font-black"
+            className="w-8 h-8 rounded-full text-zinc-900 bg-black/5 hover:bg-black/10 text-lg leading-none font-black"
             title="Zoom in"
           >
             +
@@ -151,7 +151,7 @@ export const PdfMaterialViewer: React.FC<Props> = ({ material, onClose }) => {
           <button
             type="button"
             onClick={() => setPdfZoom(100)}
-            className="h-8 px-3 rounded-full text-white bg-white/10 hover:bg-white/20 text-[11px] font-black"
+            className="h-8 px-3 rounded-full text-zinc-900 bg-black/5 hover:bg-black/10 text-[11px] font-black"
             title="Reset zoom"
           >
             100%

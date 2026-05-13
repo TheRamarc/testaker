@@ -221,18 +221,18 @@ export const PdfTestMode: React.FC<PdfTestModeProps> = ({ testId, onExit }) => {
   }
 
   return (
-    <div className="fixed inset-0 bg-black flex overflow-hidden border-t border-zinc-800 z-50">
+    <div className="fixed inset-0 bg-sky-50 flex overflow-hidden border-t border-sky-200 z-50">
       {/* Left: PDF Viewer */}
-      <div className="relative flex-1 min-w-0 bg-zinc-950 border-r border-zinc-800 overflow-hidden">
-        <div className="absolute top-4 left-4 z-20 bg-black/60 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 text-white text-xs font-black">
+      <div className="relative flex-1 min-w-0 bg-sky-50 border-r border-sky-200 overflow-hidden">
+        <div className="absolute top-4 left-4 z-20 bg-white/80 backdrop-blur-md px-4 py-2 rounded-full border border-sky-200 text-zinc-900 text-xs font-black">
           {selectedTest.name} • {pageImages.length} Pages
         </div>
 
-        <div className="absolute top-4 right-4 z-20 flex items-center gap-2 bg-black/60 backdrop-blur-md p-1 rounded-full border border-white/10">
+        <div className="absolute top-4 right-4 z-20 flex items-center gap-2 bg-white/80 backdrop-blur-md p-1 rounded-full border border-sky-200">
           <button
             type="button"
             onClick={() => adjustZoom(-2)}
-            className="w-8 h-8 rounded-full text-white bg-white/10 hover:bg-white/20 text-lg leading-none font-black"
+            className="w-8 h-8 rounded-full text-zinc-900 bg-black/5 hover:bg-black/10 text-lg leading-none font-black"
             title="Zoom out"
           >
             -
@@ -244,13 +244,13 @@ export const PdfTestMode: React.FC<PdfTestModeProps> = ({ testId, onExit }) => {
             step="2"
             value={pdfZoom}
             onChange={(e) => updateZoom(Number(e.target.value) || 100)}
-            className="w-16 h-8 rounded-full bg-zinc-900 text-white text-center text-[11px] font-black outline-none border border-white/10 focus:border-blue-500"
+            className="w-16 h-8 rounded-full bg-white text-zinc-900 text-center text-[11px] font-black outline-none border border-sky-200 focus:border-blue-500"
             title="Zoom percentage"
           />
           <button
             type="button"
             onClick={() => adjustZoom(2)}
-            className="w-8 h-8 rounded-full text-white bg-white/10 hover:bg-white/20 text-lg leading-none font-black"
+            className="w-8 h-8 rounded-full text-zinc-900 bg-black/5 hover:bg-black/10 text-lg leading-none font-black"
             title="Zoom in"
           >
             +
@@ -258,7 +258,7 @@ export const PdfTestMode: React.FC<PdfTestModeProps> = ({ testId, onExit }) => {
           <button
             type="button"
             onClick={() => setPdfZoom(100)}
-            className="h-8 px-3 rounded-full text-white bg-white/10 hover:bg-white/20 text-[11px] font-black"
+            className="h-8 px-3 rounded-full text-zinc-900 bg-black/5 hover:bg-black/10 text-[11px] font-black"
             title="Reset zoom"
           >
             100%
@@ -293,7 +293,7 @@ export const PdfTestMode: React.FC<PdfTestModeProps> = ({ testId, onExit }) => {
 
       {/* Right: Answer Sheet */}
       <div
-        className="shrink-0 flex flex-col bg-zinc-900 shadow-2xl relative"
+        className="shrink-0 flex flex-col bg-white shadow-2xl relative"
         style={{ width: answerSheetWidth }}
       >
         <div
@@ -301,11 +301,11 @@ export const PdfTestMode: React.FC<PdfTestModeProps> = ({ testId, onExit }) => {
           className="absolute left-0 top-0 h-full w-2 -translate-x-1 cursor-col-resize z-30 group"
           title="Resize answer sheet"
         >
-          <div className="h-full w-px mx-auto bg-zinc-800 group-hover:bg-blue-500 transition-colors" />
+          <div className="h-full w-px mx-auto bg-sky-200 group-hover:bg-blue-500 transition-colors" />
         </div>
-        <div className="p-6 border-b border-zinc-800 flex justify-between items-center bg-zinc-900/50 backdrop-blur-md">
+        <div className="p-6 border-b border-sky-200 flex justify-between items-center bg-sky-50/80 backdrop-blur-md">
           <div>
-            <h3 className="text-white font-black uppercase tracking-widest text-xs">Answer Sheet</h3>
+            <h3 className="text-zinc-900 font-black uppercase tracking-widest text-xs">Answer Sheet</h3>
             <p className="text-zinc-500 text-[10px] font-black mt-1">Time {formatDuration(completedSeconds ?? elapsedSeconds)}</p>
           </div>
           <button 
@@ -330,7 +330,7 @@ export const PdfTestMode: React.FC<PdfTestModeProps> = ({ testId, onExit }) => {
               <div key={qNum} className={`p-4 rounded-2xl border transition-all ${
                 isCorrect ? 'bg-green-500/10 border-green-500/50' :
                 isWrong ? 'bg-red-500/10 border-red-500/50' :
-                'bg-zinc-950 border-zinc-800'
+                'bg-sky-50 border-sky-200'
               }`}>
                 <div className="flex items-center justify-between mb-3">
                   <span className={`text-xs font-black ${isSelected ? 'text-white' : 'text-zinc-600'}`}>Q{qNum}</span>
@@ -349,7 +349,7 @@ export const PdfTestMode: React.FC<PdfTestModeProps> = ({ testId, onExit }) => {
                       className={`w-10 h-10 rounded-xl text-xs font-black border transition-all ${
                         userAnswers[qNum] === opt 
                         ? 'bg-blue-600 border-blue-400 text-white shadow-lg shadow-blue-500/20' 
-                        : 'border-zinc-800 text-zinc-600 hover:border-zinc-700'
+                        : 'border-sky-200 text-zinc-600 hover:border-sky-300'
                       }`}
                     >
                       {opt}
@@ -361,25 +361,25 @@ export const PdfTestMode: React.FC<PdfTestModeProps> = ({ testId, onExit }) => {
           })}
         </div>
 
-        <div className="p-6 border-t border-zinc-800 bg-zinc-950/50">
+        <div className="p-6 border-t border-sky-200 bg-sky-50">
           {!showResult ? (
             <button
               onClick={calculateScore}
-              className="w-full py-4 bg-white text-zinc-950 font-black rounded-2xl hover:bg-zinc-200 transition-all shadow-xl"
+              className="w-full py-4 bg-sky-600 text-white font-black rounded-2xl hover:bg-sky-500 transition-all shadow-xl"
             >
               FINISH & SUBMIT
             </button>
           ) : (
             <div className="text-center">
               <p className="text-zinc-500 text-xs font-black uppercase mb-1">Final Score</p>
-              <h2 className="text-4xl font-black text-white">{score} <span className="text-zinc-600 text-lg">/ {selectedTest.answers.length}</span></h2>
+              <h2 className="text-4xl font-black text-zinc-900">{score} <span className="text-zinc-600 text-lg">/ {selectedTest.answers.length}</span></h2>
               <p className="mt-2 text-zinc-500 text-xs font-black uppercase">Time Taken: {formatDuration(completedSeconds ?? elapsedSeconds)}</p>
               <button
                 onClick={() => {
                   setSelectedTest(null);
                   if (onExit) onExit();
                 }}
-                className="mt-6 w-full py-3 bg-zinc-800 text-white font-bold rounded-xl border border-zinc-700"
+                className="mt-6 w-full py-3 bg-sky-100 text-zinc-800 font-bold rounded-xl border border-sky-300 hover:bg-sky-200 transition-colors"
               >
                 BACK TO LIST
               </button>

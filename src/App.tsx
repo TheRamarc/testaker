@@ -13,8 +13,8 @@ function App() {
 
   const tabs: { id: Tab, label: string }[] = [
     { id: 'history', label: 'Recent History' },
-    { id: 'topics', label: 'Topics & Materials' },
-    { id: 'pdf-builder', label: 'Setup PDF Test' },
+    { id: 'topics', label: 'Topics' },
+    { id: 'pdf-builder', label: 'Register Test' },
   ];
 
   const [activeMaterial, setActiveMaterial] = useState<any | null>(null);
@@ -29,7 +29,7 @@ function App() {
   }
 
   return (
-    <main className="min-h-screen bg-black text-zinc-100 p-8 pb-24">
+    <main className="min-h-screen bg-sky-50 text-zinc-900 p-8 pb-24">
       <div className="max-w-6xl mx-auto">
         <header className="mb-12 text-center">
           <h1 className="text-4xl font-black mb-4 tracking-tighter bg-gradient-to-r from-blue-400 to-indigo-500 bg-clip-text text-transparent">
@@ -45,8 +45,8 @@ function App() {
               onClick={() => setActiveTab(tab.id)}
               className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${
                 activeTab === tab.id
-                  ? 'bg-white text-black border-white shadow-xl shadow-white/5 scale-105'
-                  : 'bg-zinc-900 text-zinc-500 hover:text-white border-zinc-800'
+                  ? 'bg-sky-100 text-black border-black shadow-xl shadow-white/5 scale-105'
+                  : 'bg-white text-zinc-600 hover:text-zinc-900 border-sky-200 hover:border-sky-300'
               }`}
             >
               {tab.label}

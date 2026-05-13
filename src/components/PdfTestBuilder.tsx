@@ -112,19 +112,19 @@ export const PdfTestBuilder: React.FC = () => {
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto p-6 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-xl">
+    <div className="w-full max-w-4xl mx-auto p-6 bg-white border border-sky-200 rounded-2xl shadow-xl">
       <div className="flex justify-between items-center mb-8">
-        <h2 className="text-2xl font-black text-white tracking-tight">Upload PDF Document</h2>
-        <div className="flex bg-zinc-950 rounded-xl p-1 border border-zinc-800">
+        <h2 className="text-2xl font-black text-zinc-900 tracking-tight">Upload PDF Document</h2>
+        <div className="flex bg-sky-50 rounded-xl p-1 border border-sky-200">
           <button
             onClick={() => setUploadMode('test')}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${uploadMode === 'test' ? 'bg-blue-600 text-white shadow-lg' : 'text-zinc-500 hover:text-white'}`}
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${uploadMode === 'test' ? 'bg-blue-600 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-900'}`}
           >
             Create PDF Test
           </button>
           <button
             onClick={() => setUploadMode('material')}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${uploadMode === 'material' ? 'bg-blue-600 text-white shadow-lg' : 'text-zinc-500 hover:text-white'}`}
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${uploadMode === 'material' ? 'bg-blue-600 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-900'}`}
           >
             Create Study Material
           </button>
@@ -139,7 +139,7 @@ export const PdfTestBuilder: React.FC = () => {
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full p-3 bg-zinc-950 border border-zinc-800 rounded-xl text-white focus:ring-2 focus:ring-blue-500 outline-none"
+              className="w-full p-3 bg-white border border-sky-200 rounded-xl text-zinc-900 focus:ring-2 focus:ring-blue-500 outline-none"
               placeholder="e.g. History Unit 1"
             />
           </div>
@@ -152,14 +152,14 @@ export const PdfTestBuilder: React.FC = () => {
                   <select
                     value={topicId || ''}
                     onChange={(e) => setTopicId(e.target.value ? Number(e.target.value) : null)}
-                    className="flex-1 p-3 bg-zinc-950 border border-zinc-800 rounded-xl text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                    className="flex-1 p-3 bg-white border border-sky-200 rounded-xl text-zinc-900 focus:ring-2 focus:ring-blue-500 outline-none"
                   >
                     <option value="">Select Topic</option>
                     {topics.map(t => (
                       <option key={t.id} value={t.id}>{t.name}</option>
                     ))}
                   </select>
-                  <button type="button" onClick={() => setShowNewTopicInput(true)} className="px-4 py-2 bg-zinc-800 text-white rounded-xl border border-zinc-700 hover:bg-zinc-700">New</button>
+                  <button type="button" onClick={() => setShowNewTopicInput(true)} className="px-4 py-2 bg-sky-100 text-zinc-800 rounded-xl border border-sky-300 hover:bg-sky-200">New</button>
                 </>
               ) : (
                 <>
@@ -167,11 +167,11 @@ export const PdfTestBuilder: React.FC = () => {
                     type="text"
                     value={newTopicName}
                     onChange={(e) => setNewTopicName(e.target.value)}
-                    className="flex-1 p-3 bg-zinc-950 border border-zinc-800 rounded-xl text-white outline-none"
+                    className="flex-1 p-3 bg-white border border-sky-200 rounded-xl text-zinc-900 outline-none"
                     placeholder="Topic Name"
                   />
                   <button type="button" onClick={handleCreateTopic} className="px-4 py-2 bg-blue-600 text-white rounded-xl">Add</button>
-                  <button type="button" onClick={() => setShowNewTopicInput(false)} className="px-4 py-2 bg-zinc-800 text-white rounded-xl">X</button>
+                  <button type="button" onClick={() => setShowNewTopicInput(false)} className="px-4 py-2 bg-sky-100 text-zinc-800 rounded-xl">X</button>
                 </>
               )}
             </div>
@@ -182,7 +182,7 @@ export const PdfTestBuilder: React.FC = () => {
             <button
               type="button"
               onClick={handlePickPdf}
-              className={`w-full p-4 border-2 border-dashed rounded-2xl transition-all ${pdfPath ? 'border-green-500/50 bg-green-500/5 text-green-400' : 'border-zinc-800 hover:border-zinc-700 bg-zinc-950 text-zinc-500'}`}
+              className={`w-full p-4 border-2 border-dashed rounded-2xl transition-all ${pdfPath ? 'border-green-500/50 bg-green-500/5 text-green-400' : 'border-sky-300 hover:border-sky-400 bg-white text-zinc-600'}`}
             >
               {pdfPath ? '✓ PDF Uploaded' : 'Click to Upload PDF'}
             </button>
@@ -196,7 +196,7 @@ export const PdfTestBuilder: React.FC = () => {
                 type="number"
                 value={numQuestions}
                 onChange={(e) => setNumQuestions(Number(e.target.value))}
-                className="w-full p-3 bg-zinc-950 border border-zinc-800 rounded-xl text-white outline-none"
+                className="w-full p-3 bg-white border border-sky-200 rounded-xl text-zinc-900 outline-none"
                 min="1"
                 max="200"
               />
@@ -216,7 +216,7 @@ export const PdfTestBuilder: React.FC = () => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-4 bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-800 text-white font-black rounded-xl transition-all shadow-xl shadow-blue-500/10 uppercase tracking-widest"
+            className="w-full py-4 bg-blue-600 hover:bg-blue-500 disabled:bg-sky-100 disabled:text-zinc-500 text-white font-black rounded-xl transition-all shadow-xl shadow-blue-500/10 uppercase tracking-widest"
           >
             {loading ? 'Processing...' : (uploadMode === 'test' ? 'Register Test' : 'Save Material')}
           </button>
@@ -225,11 +225,11 @@ export const PdfTestBuilder: React.FC = () => {
         {uploadMode === 'test' && (
           <div className="space-y-4">
           <label className="block text-xs font-black text-zinc-500 uppercase tracking-widest mb-2">Register Answer Key</label>
-          <div className="bg-zinc-950 border border-zinc-800 rounded-2xl p-6 h-[500px] overflow-y-auto space-y-4">
+          <div className="bg-white border border-sky-200 rounded-2xl p-6 h-[500px] overflow-y-auto space-y-4">
             {Array.from({ length: numQuestions }).map((_, idx) => {
               const qNum = idx + 1;
               return (
-                <div key={qNum} className="flex items-center justify-between p-3 bg-zinc-900 border border-zinc-800 rounded-xl">
+                <div key={qNum} className="flex items-center justify-between p-3 bg-sky-50 border border-sky-200 rounded-xl">
                   <span className="text-zinc-500 font-black text-xs">Q{qNum}</span>
                   <div className="flex gap-2">
                     {['A', 'B', 'C', 'D', 'E'].map(opt => (
@@ -237,7 +237,7 @@ export const PdfTestBuilder: React.FC = () => {
                         key={opt}
                         type="button"
                         onClick={() => handleAnswerChange(qNum, opt)}
-                        className={`w-8 h-8 rounded-lg text-xs font-black border transition-all ${answers[qNum] === opt ? 'bg-blue-600 border-blue-500 text-white' : 'border-zinc-800 text-zinc-600 hover:border-zinc-700'}`}
+                        className={`w-8 h-8 rounded-lg text-xs font-black border transition-all ${answers[qNum] === opt ? 'bg-blue-600 border-blue-500 text-white' : 'border-sky-200 text-zinc-500 hover:border-sky-300'}`}
                       >
                         {opt}
                       </button>
