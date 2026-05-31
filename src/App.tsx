@@ -5,6 +5,8 @@ import { TopicsManager } from "./components/TopicsManager";
 import { HistoryDashboard } from "./components/HistoryDashboard";
 import { PdfMaterialViewer } from "./components/PdfMaterialViewer";
 import { PdfTestMode } from "./components/PdfTestMode";
+import { TextTestMode } from "./components/TextTestMode";
+import type { PdfMaterial } from "./lib/db";
 
 type Tab = 'topics' | 'pdf-builder' | 'history';
 
@@ -17,7 +19,7 @@ function App() {
     { id: 'pdf-builder', label: 'Register Test' },
   ];
 
-  const [activeMaterial, setActiveMaterial] = useState<any | null>(null);
+  const [activeMaterial, setActiveMaterial] = useState<PdfMaterial | null>(null);
   const [activeTest, setActiveTest] = useState<{id: number, type: 'pdf' | 'text'} | null>(null);
 
   if (activeMaterial) {
@@ -27,15 +29,8 @@ function App() {
   if (activeTest) {
     if (activeTest.type === 'pdf') {
       return <PdfTestMode testId={activeTest.id} onExit={() => setActiveTest(null)} />;
-    } else {
-      return (
-        <div className="fixed inset-0 bg-sky-50 flex flex-col items-center justify-center p-8 text-center z-50">
-          <h2 className="text-4xl font-black text-zinc-900 mb-4">Text Test Mode Coming Soon!</h2>
-          <p className="text-zinc-600 mb-8 max-w-md">You've successfully created a text test. The interface to take these tests is currently under construction.</p>
-          <button onClick={() => setActiveTest(null)} className="px-8 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-black shadow-xl transition-all tracking-widest uppercase">Go Back to Dashboard</button>
-        </div>
-      );
     }
+    return <TextTestMode testId={activeTest.id} onExit={() => setActiveTest(null)} />;
   }
 
   return (

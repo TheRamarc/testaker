@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { PdfMaterial, addMaterialStudyTime } from '../lib/db';
-import { readFile } from '@tauri-apps/plugin-fs';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { renderPdfPages, revokeObjectUrls } from '../lib/pdfRenderer';
 
 interface Props {
   material: PdfMaterial;
@@ -17,7 +17,11 @@ export const PdfMaterialViewer: React.FC<Props> = ({ material, onClose }) => {
   const handleExit = async () => {
     const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
     if (material.id && elapsed > 0) {
-      try { await addMaterialStudyTime(material.id, elapsed); } catch (_) {}
+      try {
+        await addMaterialStudyTime(material.id, elapsed);
+      } catch (error) {
+        console.error('Failed to save material study time:', error);
+      }
     }
     onClose();
   };
@@ -30,64 +34,20 @@ export const PdfMaterialViewer: React.FC<Props> = ({ material, onClose }) => {
 
     return () => {
       appWindow.setFullscreen(false).catch(console.error);
-      pageImages.forEach(src => {
-        if (src.startsWith('blob:')) URL.revokeObjectURL(src);
-      });
     };
   }, [material]);
 
-  const renderPdfWithPdfJs = async (pdfPath: string) => {
-    const [{ GlobalWorkerOptions, getDocument }, { default: pdfWorkerSrc }] = await Promise.all([
-      import('pdfjs-dist/legacy/build/pdf.mjs'),
-      import('pdfjs-dist/legacy/build/pdf.worker.mjs?url')
-    ]);
-
-    GlobalWorkerOptions.workerSrc = pdfWorkerSrc;
-
-    const pdfBytes = await readFile(pdfPath);
-    const pdf = await getDocument({ data: pdfBytes }).promise;
-    const renderedPages: string[] = [];
-
-    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
-      const page = await pdf.getPage(pageNumber);
-      const viewport = page.getViewport({ scale: 1.6 });
-      const canvas = document.createElement('canvas');
-      const context = canvas.getContext('2d');
-
-      if (!context) {
-        throw new Error('Could not create canvas context for PDF rendering');
-      }
-
-      canvas.width = Math.ceil(viewport.width);
-      canvas.height = Math.ceil(viewport.height);
-
-      await page.render({ canvas, canvasContext: context, viewport }).promise;
-
-      const blob = await new Promise<Blob>((resolve, reject) => {
-        canvas.toBlob(result => {
-          if (result) {
-            resolve(result);
-          } else {
-            reject(new Error('Could not render PDF page image'));
-          }
-        }, 'image/png');
-      });
-
-      renderedPages.push(URL.createObjectURL(blob));
-    }
-
-    return renderedPages;
-  };
+  useEffect(() => {
+    return () => revokeObjectUrls(pageImages);
+  }, [pageImages]);
 
   const loadPdf = async () => {
     if (!material.sourcePdfPath) return;
     setLoadingPages(true);
     try {
-      const images = await renderPdfWithPdfJs(material.sourcePdfPath);
+      const images = await renderPdfPages(material.sourcePdfPath);
       setPageImages(currentImages => {
-        currentImages.forEach(src => {
-          if (src.startsWith('blob:')) URL.revokeObjectURL(src);
-        });
+        revokeObjectUrls(currentImages);
         return images;
       });
     } catch (error) {

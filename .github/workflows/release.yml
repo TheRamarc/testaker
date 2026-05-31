@@ -34,7 +34,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 25
+          node-version: lts/*
           cache: 'pnpm'
 
       # 3. Install Rust stable + macOS universal targets
@@ -64,7 +64,7 @@ jobs:
 
       # 6. Install frontend dependencies
       - name: Install frontend dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
       # 7. Build and publish with tauri-action
       - name: Build and publish Tauri app
@@ -72,8 +72,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: v__VERSION__
-          releaseName: "TNPSC Master v__VERSION__"
+          tagName: ${{ github.ref_name }}
+          releaseName: "Testaker ${{ github.ref_name }}"
           releaseBody: |
             ## What's New
             See the assets below to download and install the latest version.

@@ -38,8 +38,10 @@
       "allow": [
         { "path": "$HOME/tnpsc_uploads" },
         { "path": "$HOME/tnpsc_uploads/**" },
-        { "path": "$DOWNLOADS/**" },
-        { "path": "$DESKTOP/**" }
+        { "path": "$DOWNLOAD/**" },
+        { "path": "$DESKTOP/**" },
+        { "path": "$DOCUMENT/**" },
+        { "path": "$PICTURE/**" }
       ]
     },
     {
@@ -54,8 +56,10 @@
       "allow": [
         { "path": "$HOME/tnpsc_uploads" },
         { "path": "$HOME/tnpsc_uploads/**" },
-        { "path": "$DOWNLOADS/**" },
-        { "path": "$DESKTOP/**" }
+        { "path": "$DOWNLOAD/**" },
+        { "path": "$DESKTOP/**" },
+        { "path": "$DOCUMENT/**" },
+        { "path": "$PICTURE/**" }
       ]
     }
   ]

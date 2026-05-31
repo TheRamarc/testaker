@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getPdfTestById, PdfTest, savePdfTestAttempt } from '../lib/db';
-import { readFile } from '@tauri-apps/plugin-fs';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { renderPdfPages, revokeObjectUrls } from '../lib/pdfRenderer';
 
 interface PdfTestModeProps {
   testId: number;
@@ -40,9 +40,7 @@ export const PdfTestMode: React.FC<PdfTestModeProps> = ({ testId, onExit }) => {
 
   useEffect(() => {
     return () => {
-      pageImages.forEach(src => {
-        if (src.startsWith('blob:')) URL.revokeObjectURL(src);
-      });
+      revokeObjectUrls(pageImages);
     };
   }, [pageImages]);
 
@@ -58,54 +56,9 @@ export const PdfTestMode: React.FC<PdfTestModeProps> = ({ testId, onExit }) => {
     return () => window.clearInterval(timerId);
   }, [startedAt, showResult]);
 
-  const renderPdfWithPdfJs = async (pdfPath: string) => {
-    const [{ GlobalWorkerOptions, getDocument }, { default: pdfWorkerSrc }] = await Promise.all([
-      import('pdfjs-dist/legacy/build/pdf.mjs'),
-      import('pdfjs-dist/legacy/build/pdf.worker.mjs?url')
-    ]);
-
-    GlobalWorkerOptions.workerSrc = pdfWorkerSrc;
-
-    const pdfBytes = await readFile(pdfPath);
-    const pdf = await getDocument({ data: pdfBytes }).promise;
-    const renderedPages: string[] = [];
-
-    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
-      const page = await pdf.getPage(pageNumber);
-      const viewport = page.getViewport({ scale: 1.6 });
-      const canvas = document.createElement('canvas');
-      const context = canvas.getContext('2d');
-
-      if (!context) {
-        throw new Error('Could not create canvas context for PDF rendering');
-      }
-
-      canvas.width = Math.ceil(viewport.width);
-      canvas.height = Math.ceil(viewport.height);
-
-      await page.render({ canvas, canvasContext: context, viewport }).promise;
-
-      const blob = await new Promise<Blob>((resolve, reject) => {
-        canvas.toBlob(result => {
-          if (result) {
-            resolve(result);
-          } else {
-            reject(new Error('Could not render PDF page image'));
-          }
-        }, 'image/png');
-      });
-
-      renderedPages.push(URL.createObjectURL(blob));
-    }
-
-    return renderedPages;
-  };
-
   const replacePageImages = (images: string[]) => {
     setPageImages(currentImages => {
-      currentImages.forEach(src => {
-        if (src.startsWith('blob:')) URL.revokeObjectURL(src);
-      });
+      revokeObjectUrls(currentImages);
       return images;
     });
   };
@@ -119,7 +72,7 @@ export const PdfTestMode: React.FC<PdfTestModeProps> = ({ testId, onExit }) => {
         throw new Error('No source PDF is saved for this test. Please register this PDF again.');
       }
 
-      const images = await renderPdfWithPdfJs(test.sourcePdfPath);
+      const images = await renderPdfPages(test.sourcePdfPath);
       replacePageImages(images);
       setSelectedTest(test);
       setUserAnswers({});

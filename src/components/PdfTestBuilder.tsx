@@ -1,9 +1,63 @@
 import React, { useState, useEffect } from 'react';
-import { pickAndSavePdf } from '../lib/storage';
+import { pickAndSaveImages, pickAndSavePdf } from '../lib/storage';
 import { getAllTopics, createTopic, Topic, savePdfTest, savePdfMaterial, PdfAnswer, saveTextTest } from '../lib/db';
+import { createImageObjectUrl, revokeObjectUrls } from '../lib/filePreview';
+
+const OPTION_LABELS = ['A', 'B', 'C', 'D', 'E'];
+
+type UploadMode = 'pdf_test' | 'photo_test' | 'text_test' | 'material';
+
+interface PhotoQuestionDraft {
+  imagePath: string;
+  originalName: string;
+  answer: string | null;
+}
+
+const PhotoQuestionPreview: React.FC<{ imagePath: string; label: string }> = ({ imagePath, label }) => {
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    let objectUrl: string | null = null;
+
+    createImageObjectUrl(imagePath)
+      .then(url => {
+        objectUrl = url;
+        if (isMounted) {
+          setPreviewUrl(url);
+        } else {
+          revokeObjectUrls([url]);
+        }
+      })
+      .catch(error => {
+        console.error('Failed to load photo preview:', error);
+      });
+
+    return () => {
+      isMounted = false;
+      if (objectUrl) revokeObjectUrls([objectUrl]);
+    };
+  }, [imagePath]);
+
+  if (!previewUrl) {
+    return (
+      <div className="w-20 h-20 rounded-xl bg-white border border-sky-200 flex items-center justify-center text-[10px] font-black text-zinc-400">
+        IMG
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={previewUrl}
+      alt={label}
+      className="w-20 h-20 rounded-xl object-cover border border-sky-200 bg-white"
+    />
+  );
+};
 
 export const PdfTestBuilder: React.FC = () => {
-  const [uploadMode, setUploadMode] = useState<'pdf_test' | 'text_test' | 'material'>('pdf_test');
+  const [uploadMode, setUploadMode] = useState<UploadMode>('pdf_test');
   const [name, setName] = useState('');
   const [pdfPath, setPdfPath] = useState<string | null>(null);
   const [topicId, setTopicId] = useState<number | null>(null);
@@ -14,6 +68,7 @@ export const PdfTestBuilder: React.FC = () => {
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info', text: string } | null>(null);
+  const [photoQuestions, setPhotoQuestions] = useState<PhotoQuestionDraft[]>([]);
 
   // Text Test state
   const [textQuestions, setTextQuestions] = useState<{ text: string, options: { text: string, isCorrect: boolean }[] }[]>([
@@ -34,18 +89,48 @@ export const PdfTestBuilder: React.FC = () => {
   };
 
   const handlePickPdf = async () => {
-    const path = await pickAndSavePdf();
-    if (path) {
-      setPdfPath(path);
+    const pdf = await pickAndSavePdf();
+    if (pdf) {
+      setPdfPath(pdf.savedPath);
       if (!name) {
-        const baseName = path.split(/[/\\]/).pop()?.replace(/pdf_\d+_/, '').replace('.pdf', '');
+        const baseName = pdf.originalName.replace(/\.pdf$/i, '');
         setName(baseName || 'New PDF Test');
       }
     }
   };
 
+  const handlePickImages = async () => {
+    const images = await pickAndSaveImages();
+    if (images.length === 0) return;
+
+    setPhotoQuestions(prev => [
+      ...prev,
+      ...images.map(image => ({
+        imagePath: image.savedPath,
+        originalName: image.originalName,
+        answer: null
+      }))
+    ]);
+
+    if (!name && images.length === 1) {
+      setName(images[0].originalName.replace(/\.(png|jpe?g|webp)$/i, '') || 'Photo Test');
+    } else if (!name) {
+      setName('Photo Test');
+    }
+  };
+
   const handleAnswerChange = (qNum: number, option: string) => {
     setAnswers(prev => ({ ...prev, [qNum]: option }));
+  };
+
+  const handlePhotoAnswerChange = (index: number, option: string) => {
+    setPhotoQuestions(prev => prev.map((question, qIndex) => (
+      qIndex === index ? { ...question, answer: option } : question
+    )));
+  };
+
+  const handleRemovePhotoQuestion = (index: number) => {
+    setPhotoQuestions(prev => prev.filter((_, qIndex) => qIndex !== index));
   };
 
   const handleCreateTopic = async () => {
@@ -113,7 +198,7 @@ export const PdfTestBuilder: React.FC = () => {
       setMessage({ type: 'error', text: 'Please fill name and topic fields' });
       return;
     }
-    if (uploadMode !== 'text_test' && !pdfPath) {
+    if ((uploadMode === 'pdf_test' || uploadMode === 'material') && !pdfPath) {
       setMessage({ type: 'error', text: 'Please upload a PDF document' });
       return;
     }
@@ -129,6 +214,17 @@ export const PdfTestBuilder: React.FC = () => {
           questionNumber: i,
           correctOption: answers[i]
         });
+      }
+    } else if (uploadMode === 'photo_test') {
+      if (photoQuestions.length === 0) {
+        setMessage({ type: 'error', text: 'Please upload at least one question photo' });
+        return;
+      }
+      for (let i = 0; i < photoQuestions.length; i++) {
+        if (!photoQuestions[i].answer) {
+          setMessage({ type: 'error', text: `Please choose an answer for Photo Question ${i + 1}` });
+          return;
+        }
       }
     } else if (uploadMode === 'text_test') {
       if (textQuestions.length === 0) {
@@ -179,6 +275,22 @@ export const PdfTestBuilder: React.FC = () => {
         });
         setMessage({ type: 'success', text: 'Text Test created successfully!' });
         setTextQuestions([{ text: '', options: [{ text: '', isCorrect: true }, { text: '', isCorrect: false }, { text: '', isCorrect: false }, { text: '', isCorrect: false }] }]);
+      } else if (uploadMode === 'photo_test') {
+        await saveTextTest({
+          name,
+          topicId,
+          questions: photoQuestions.map((question, index) => ({
+            text: `Photo Question ${index + 1}`,
+            imagePath: question.imagePath,
+            topicId,
+            options: OPTION_LABELS.map(option => ({
+              text: option,
+              isCorrect: option === question.answer
+            }))
+          }))
+        });
+        setMessage({ type: 'success', text: 'Photo Test created successfully!' });
+        setPhotoQuestions([]);
       } else {
         await savePdfMaterial({
           name,
@@ -218,6 +330,13 @@ export const PdfTestBuilder: React.FC = () => {
             className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${uploadMode === 'text_test' ? 'bg-blue-600 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-900'}`}
           >
             Text Test
+          </button>
+          <button
+            type="button"
+            onClick={() => setUploadMode('photo_test')}
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${uploadMode === 'photo_test' ? 'bg-blue-600 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-900'}`}
+          >
+            Photo Test
           </button>
           <button
             type="button"
@@ -275,7 +394,7 @@ export const PdfTestBuilder: React.FC = () => {
             </div>
           </div>
 
-          {uploadMode !== 'text_test' && (
+          {(uploadMode === 'pdf_test' || uploadMode === 'material') && (
             <div>
               <label className="block text-xs font-black text-zinc-500 uppercase tracking-widest mb-2">PDF Document</label>
               <button
@@ -286,6 +405,19 @@ export const PdfTestBuilder: React.FC = () => {
                 {pdfPath ? '✓ PDF Uploaded' : 'Click to Upload PDF'}
               </button>
               {pdfPath && <p className="mt-2 text-[10px] text-zinc-600 truncate">{pdfPath}</p>}
+            </div>
+          )}
+
+          {uploadMode === 'photo_test' && (
+            <div>
+              <label className="block text-xs font-black text-zinc-500 uppercase tracking-widest mb-2">Question Photos</label>
+              <button
+                type="button"
+                onClick={handlePickImages}
+                className="w-full p-4 border-2 border-dashed rounded-2xl transition-all border-sky-300 hover:border-sky-400 bg-white text-zinc-600"
+              >
+                {photoQuestions.length > 0 ? `Add More Photos (${photoQuestions.length} selected)` : 'Upload Question Photos'}
+              </button>
             </div>
           )}
 
@@ -318,7 +450,11 @@ export const PdfTestBuilder: React.FC = () => {
             disabled={loading}
             className="w-full py-4 bg-blue-600 hover:bg-blue-500 disabled:bg-sky-100 disabled:text-zinc-500 text-white font-black rounded-xl transition-all shadow-xl shadow-blue-500/10 uppercase tracking-widest"
           >
-            {loading ? 'Processing...' : (uploadMode === 'pdf_test' ? 'Register PDF Test' : uploadMode === 'text_test' ? 'Create Text Test' : 'Save Material')}
+            {loading ? 'Processing...' : (
+              uploadMode === 'pdf_test' ? 'Register PDF Test' :
+              uploadMode === 'photo_test' ? 'Create Photo Test' :
+              uploadMode === 'text_test' ? 'Create Text Test' : 'Save Material'
+            )}
           </button>
         </div>
 
@@ -332,7 +468,7 @@ export const PdfTestBuilder: React.FC = () => {
                   <div key={qNum} className="flex items-center justify-between p-3 bg-sky-50 border border-sky-200 rounded-xl">
                     <span className="text-zinc-500 font-black text-xs">Q{qNum}</span>
                     <div className="flex gap-2">
-                      {['A', 'B', 'C', 'D', 'E'].map(opt => (
+                      {OPTION_LABELS.map(opt => (
                         <button
                           key={opt}
                           type="button"
@@ -346,6 +482,66 @@ export const PdfTestBuilder: React.FC = () => {
                   </div>
                 );
               })}
+            </div>
+          </div>
+        )}
+
+        {uploadMode === 'photo_test' && (
+          <div className="space-y-4">
+            <div className="flex justify-between items-center mb-2">
+              <label className="block text-xs font-black text-zinc-500 uppercase tracking-widest">Photo Answer Key</label>
+              <button
+                type="button"
+                onClick={handlePickImages}
+                className="px-3 py-1 bg-sky-100 text-blue-600 text-[10px] font-black rounded-lg uppercase tracking-wider hover:bg-sky-200"
+              >
+                + Add Photos
+              </button>
+            </div>
+
+            <div className="bg-white border border-sky-200 rounded-2xl p-6 h-[500px] overflow-y-auto space-y-4">
+              {photoQuestions.length === 0 ? (
+                <div className="text-center text-zinc-400 py-10 font-bold">No photos uploaded yet.</div>
+              ) : (
+                photoQuestions.map((question, qIdx) => (
+                  <div key={`${question.imagePath}-${qIdx}`} className="p-4 bg-sky-50 border border-sky-200 rounded-xl space-y-3">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-start gap-3 min-w-0">
+                        <PhotoQuestionPreview imagePath={question.imagePath} label={`Question ${qIdx + 1}`} />
+                        <div className="min-w-0 pt-1">
+                          <div className="text-blue-600 font-black text-sm">Q{qIdx + 1}</div>
+                          <div className="text-zinc-900 text-sm font-bold truncate">{question.originalName}</div>
+                          <div className="text-zinc-500 text-[10px] truncate">{question.imagePath}</div>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemovePhotoQuestion(qIdx)}
+                        className="text-red-500 hover:text-red-700 font-black text-lg px-2"
+                        title="Remove Photo"
+                      >
+                        ×
+                      </button>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-zinc-500 font-black text-[10px] uppercase tracking-widest">Correct Answer</span>
+                      <div className="flex gap-2">
+                        {OPTION_LABELS.map(opt => (
+                          <button
+                            key={opt}
+                            type="button"
+                            onClick={() => handlePhotoAnswerChange(qIdx, opt)}
+                            className={`w-8 h-8 rounded-lg text-xs font-black border transition-all ${question.answer === opt ? 'bg-blue-600 border-blue-500 text-white' : 'bg-white border-sky-200 text-zinc-500 hover:border-sky-300'}`}
+                          >
+                            {opt}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         )}

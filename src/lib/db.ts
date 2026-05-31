@@ -1,12 +1,22 @@
 import Database from '@tauri-apps/plugin-sql';
 
 let db: Database | null = null;
+let writeQueue: Promise<void> = Promise.resolve();
 
 async function getDb() {
   if (!db) {
     db = await Database.load('sqlite:tnpsc.db');
   }
   return db;
+}
+
+async function runWriteBatch<T>(work: () => Promise<T>) {
+  const result = writeQueue.then(work, work);
+  writeQueue = result.then(
+    () => undefined,
+    () => undefined
+  );
+  return result;
 }
 
 export interface Option {
@@ -70,8 +80,13 @@ export interface TextTest {
   name: string;
   topicId: number | null;
   questions: Question[];
+  previewImagePath?: string | null;
   lastAttempt?: TextTestAttempt | null;
 }
+
+export type TextTestQuestionInput = Omit<Question, 'imagePath'> & {
+  imagePath?: string | null;
+};
 
 export interface PdfMaterial {
   id?: number;
@@ -82,6 +97,95 @@ export interface PdfMaterial {
   created_at?: string;
   last_opened_at?: string | null;
   total_study_seconds?: number;
+}
+
+interface OptionRow {
+  id: number;
+  text: string;
+  is_correct: boolean | number;
+}
+
+interface QuestionRow {
+  id: number;
+  text: string;
+  image_path: string | null;
+  topic_id: number | null;
+  text_test_id?: number | null;
+  created_at?: string;
+}
+
+interface IdRow {
+  id: number;
+}
+
+interface PdfTestRow {
+  id: number;
+  name: string;
+  pdf_path: string;
+  source_pdf_path: string | null;
+  topic_id: number | null;
+  created_at?: string;
+}
+
+interface PdfTestListRow extends PdfTestRow {
+  last_attempt_id: number | null;
+  last_score: number | null;
+  last_total_questions: number | null;
+  last_duration_seconds: number | null;
+  last_attempted_at: string | null;
+}
+
+interface PdfAnswerRow {
+  id: number;
+  question_number: number;
+  correct_option: string;
+}
+
+interface PdfMaterialRow {
+  id: number;
+  name: string;
+  pdf_path: string;
+  source_pdf_path: string | null;
+  topic_id: number | null;
+  created_at?: string;
+  last_opened_at?: string | null;
+  total_study_seconds?: number | null;
+}
+
+interface RecentPdfAttemptRow {
+  id: number;
+  pdf_test_id: number;
+  score: number;
+  total_questions: number;
+  duration_seconds: number;
+  attempted_at: string;
+  test_name: string;
+}
+
+interface RecentTextAttemptRow {
+  id: number;
+  text_test_id: number;
+  score: number;
+  total_questions: number;
+  duration_seconds: number;
+  attempted_at: string;
+  test_name: string;
+}
+
+interface TextTestRow {
+  id: number;
+  name: string;
+  topic_id: number | null;
+  created_at?: string;
+}
+
+interface TextTestListRow extends TextTestRow {
+  preview_image_path: string | null;
+  last_attempt_id: number | null;
+  last_score: number | null;
+  last_total_questions: number | null;
+  last_duration_seconds: number | null;
+  last_attempted_at: string | null;
 }
 
 export async function createTopic(name: string) {
@@ -98,25 +202,29 @@ export async function getAllTopics(): Promise<Topic[]> {
 export async function saveQuestion(question: Question) {
   const db = await getDb();
   try {
-    const result = await db.execute(
-      'INSERT INTO questions (text, image_path, topic_id, text_test_id) VALUES ($1, $2, $3, $4)',
-      [question.text, null, question.topicId, question.textTestId ?? null]
-    );
-    const questionId = result.lastInsertId;
-    for (const option of question.options) {
-      await db.execute(
-        'INSERT INTO options (question_id, text, is_correct) VALUES ($1, $2, $3)',
-        [questionId, option.text, option.isCorrect]
-      );
-    }
-    return questionId;
+    return await runWriteBatch(() => insertQuestion(db, question));
   } catch (error) {
     console.error('Failed to save question:', error);
     throw error;
   }
 }
 
-async function mapOptions(options: any[]): Promise<Option[]> {
+async function insertQuestion(database: Database, question: Question) {
+  const result = await database.execute(
+    'INSERT INTO questions (text, image_path, topic_id, text_test_id) VALUES ($1, $2, $3, $4)',
+    [question.text, question.imagePath, question.topicId, question.textTestId ?? null]
+  );
+  const questionId = result.lastInsertId;
+  for (const option of question.options) {
+    await database.execute(
+      'INSERT INTO options (question_id, text, is_correct) VALUES ($1, $2, $3)',
+      [questionId, option.text, option.isCorrect]
+    );
+  }
+  return questionId;
+}
+
+function mapOptions(options: OptionRow[]): Option[] {
   return options.map(opt => ({
     id: opt.id,
     text: opt.text,
@@ -124,32 +232,97 @@ async function mapOptions(options: any[]): Promise<Option[]> {
   }));
 }
 
+function mapPdfTestRow(test: PdfTestRow, answers: PdfAnswer[] = []): PdfTest {
+  return {
+    id: test.id,
+    name: test.name,
+    pdfPath: test.pdf_path,
+    sourcePdfPath: test.source_pdf_path,
+    topicId: test.topic_id,
+    answers
+  };
+}
+
+function mapPdfTestListRow(test: PdfTestListRow): PdfTest {
+  return {
+    ...mapPdfTestRow(test),
+    lastAttempt: test.last_attempt_id ? {
+      id: test.last_attempt_id,
+      pdfTestId: test.id,
+      score: test.last_score ?? 0,
+      totalQuestions: test.last_total_questions ?? 0,
+      durationSeconds: test.last_duration_seconds ?? 0,
+      attemptedAt: test.last_attempted_at ?? ''
+    } : null
+  };
+}
+
+function mapPdfMaterialRow(material: PdfMaterialRow): PdfMaterial {
+  return {
+    id: material.id,
+    name: material.name,
+    pdfPath: material.pdf_path,
+    sourcePdfPath: material.source_pdf_path,
+    topicId: material.topic_id,
+    created_at: material.created_at,
+    last_opened_at: material.last_opened_at,
+    total_study_seconds: material.total_study_seconds ?? 0
+  };
+}
+
+function mapTextTestListRow(test: TextTestListRow): TextTest {
+  return {
+    id: test.id,
+    name: test.name,
+    topicId: test.topic_id,
+    questions: [],
+    previewImagePath: test.preview_image_path,
+    lastAttempt: test.last_attempt_id ? {
+      id: test.last_attempt_id,
+      textTestId: test.id,
+      score: test.last_score ?? 0,
+      totalQuestions: test.last_total_questions ?? 0,
+      durationSeconds: test.last_duration_seconds ?? 0,
+      attemptedAt: test.last_attempted_at ?? ''
+    } : null
+  };
+}
+
 export async function getAllQuestions() {
   const db = await getDb();
-  const questions = await db.select<any[]>('SELECT * FROM questions ORDER BY created_at DESC');
+  const questions = await db.select<(QuestionRow & { options?: Option[]; topicId?: number | null })[]>('SELECT * FROM questions ORDER BY created_at DESC');
   for (const q of questions) {
-    const rawOptions = await db.select<any[]>('SELECT * FROM options WHERE question_id = $1', [q.id]);
-    q.options = await mapOptions(rawOptions);
+    const rawOptions = await db.select<OptionRow[]>('SELECT * FROM options WHERE question_id = $1', [q.id]);
+    q.options = mapOptions(rawOptions);
     q.topicId = q.topic_id;
   }
-  return questions;
+  return questions.map(q => ({
+    id: q.id,
+    text: q.text,
+    imagePath: q.image_path,
+    topicId: q.topic_id,
+    textTestId: q.text_test_id,
+    options: q.options ?? []
+  }));
 }
 
 export async function updateQuestion(question: Question) {
   if (!question.id) throw new Error('Question ID is required');
   const db = await getDb();
   try {
-    await db.execute(
-      'UPDATE questions SET text = $1, image_path = $2, topic_id = $3 WHERE id = $4',
-      [question.text, null, question.topicId, question.id]
-    );
-    await db.execute('DELETE FROM options WHERE question_id = $1', [question.id]);
-    for (const option of question.options) {
+    await runWriteBatch(async () => {
       await db.execute(
-        'INSERT INTO options (question_id, text, is_correct) VALUES ($1, $2, $3)',
-        [question.id, option.text, option.isCorrect]
+        'UPDATE questions SET text = $1, image_path = $2, topic_id = $3 WHERE id = $4',
+        [question.text, question.imagePath, question.topicId, question.id]
       );
-    }
+      await db.execute('DELETE FROM options WHERE question_id = $1', [question.id]);
+      for (const option of question.options) {
+        await db.execute(
+          'INSERT INTO options (question_id, text, is_correct) VALUES ($1, $2, $3)',
+          [question.id, option.text, option.isCorrect]
+        );
+      }
+    });
   } catch (error) {
     throw error;
   }
@@ -157,39 +330,53 @@ export async function updateQuestion(question: Question) {
 
 export async function deleteQuestion(id: number) {
   const db = await getDb();
-  await db.execute('DELETE FROM options WHERE question_id = $1', [id]);
-  await db.execute('DELETE FROM questions WHERE id = $1', [id]);
+  await runWriteBatch(async () => {
+    await db.execute('DELETE FROM options WHERE question_id = $1', [id]);
+    await db.execute('DELETE FROM questions WHERE id = $1', [id]);
+  });
 }
 
 export async function getQuestionsByTopic(topicId: number): Promise<Question[]> {
   const db = await getDb();
-  const questions = await db.select<any[]>(
+  const questions = await db.select<(QuestionRow & { options?: Option[]; topicId?: number | null })[]>(
     'SELECT * FROM questions WHERE topic_id = $1 ORDER BY created_at DESC',
     [topicId]
   );
   for (const q of questions) {
-    const rawOptions = await db.select<any[]>('SELECT * FROM options WHERE question_id = $1', [q.id]);
-    q.options = await mapOptions(rawOptions);
+    const rawOptions = await db.select<OptionRow[]>('SELECT * FROM options WHERE question_id = $1', [q.id]);
+    q.options = mapOptions(rawOptions);
     q.topicId = q.topic_id;
   }
-  return questions;
+  return questions.map(q => ({
+    id: q.id,
+    text: q.text,
+    imagePath: q.image_path,
+    topicId: q.topic_id,
+    textTestId: q.text_test_id,
+    options: q.options ?? []
+  }));
 }
 
 export async function getRandomQuestions(questionsPerTopic: number): Promise<Question[]> {
   const db = await getDb();
   const topics = await getAllTopics();
-  let allSelectedQuestions: any[] = [];
+  let allSelectedQuestions: Question[] = [];
   for (const topic of topics) {
-    const questions = await db.select<any[]>(
+    const questions = await db.select<QuestionRow[]>(
       'SELECT * FROM questions WHERE topic_id = $1 ORDER BY RANDOM() LIMIT $2',
       [topic.id, questionsPerTopic]
     );
     for (const q of questions) {
-      const rawOptions = await db.select<any[]>('SELECT * FROM options WHERE question_id = $1', [q.id]);
-      q.options = await mapOptions(rawOptions);
-      q.topicId = q.topic_id;
+      const rawOptions = await db.select<OptionRow[]>('SELECT * FROM options WHERE question_id = $1', [q.id]);
+      allSelectedQuestions.push({
+        id: q.id,
+        text: q.text,
+        imagePath: q.image_path,
+        topicId: q.topic_id,
+        textTestId: q.text_test_id,
+        options: mapOptions(rawOptions)
+      });
     }
-    allSelectedQuestions = [...allSelectedQuestions, ...questions];
   }
   return allSelectedQuestions.sort(() => Math.random() - 0.5);
 }
@@ -197,18 +384,20 @@ export async function getRandomQuestions(questionsPerTopic: number): Promise<Que
 export async function savePdfTest(test: PdfTest) {
   const db = await getDb();
   try {
-    const result = await db.execute(
-      'INSERT INTO pdf_tests (name, pdf_path, source_pdf_path, topic_id) VALUES ($1, $2, $3, $4)',
-      [test.name, test.pdfPath, test.sourcePdfPath ?? null, test.topicId]
-    );
-    const pdfTestId = result.lastInsertId;
-    for (const ans of test.answers) {
-      await db.execute(
-        'INSERT INTO pdf_answers (pdf_test_id, question_number, correct_option) VALUES ($1, $2, $3)',
-        [pdfTestId, ans.questionNumber, ans.correctOption]
+    return await runWriteBatch(async () => {
+      const result = await db.execute(
+        'INSERT INTO pdf_tests (name, pdf_path, source_pdf_path, topic_id) VALUES ($1, $2, $3, $4)',
+        [test.name, test.pdfPath, test.sourcePdfPath ?? null, test.topicId]
       );
-    }
-    return pdfTestId;
+      const pdfTestId = result.lastInsertId;
+      for (const ans of test.answers) {
+        await db.execute(
+          'INSERT INTO pdf_answers (pdf_test_id, question_number, correct_option) VALUES ($1, $2, $3)',
+          [pdfTestId, ans.questionNumber, ans.correctOption]
+        );
+      }
+      return pdfTestId;
+    });
   } catch (error) {
     console.error('Failed to save PDF test:', error);
     throw error;
@@ -217,7 +406,7 @@ export async function savePdfTest(test: PdfTest) {
 
 export async function getAllPdfTests(): Promise<PdfTest[]> {
   const db = await getDb();
-  const tests = await db.select<any[]>(`
+  const tests = await db.select<PdfTestListRow[]>(`
     SELECT
       t.*,
       a.id AS last_attempt_id,
@@ -236,43 +425,26 @@ export async function getAllPdfTests(): Promise<PdfTest[]> {
     ORDER BY t.created_at DESC
   `);
 
-  return tests.map(t => ({
-    ...t,
-    pdfPath: t.pdf_path,
-    sourcePdfPath: t.source_pdf_path,
-    topicId: t.topic_id,
-    answers: [],
-    lastAttempt: t.last_attempt_id ? {
-      id: t.last_attempt_id,
-      pdfTestId: t.id,
-      score: t.last_score,
-      totalQuestions: t.last_total_questions,
-      durationSeconds: t.last_duration_seconds,
-      attemptedAt: t.last_attempted_at
-    } : null
-  }));
+  return tests.map(mapPdfTestListRow);
 }
 
 export async function getPdfTestById(id: number): Promise<PdfTest | null> {
   const db = await getDb();
-  const tests = await db.select<any[]>('SELECT * FROM pdf_tests WHERE id = $1', [id]);
+  const tests = await db.select<PdfTestRow[]>('SELECT * FROM pdf_tests WHERE id = $1', [id]);
   if (tests.length === 0) return null;
   const test = tests[0];
-  const answers = await db.select<any[]>(
+  const answers = await db.select<PdfAnswerRow[]>(
     'SELECT * FROM pdf_answers WHERE pdf_test_id = $1 ORDER BY question_number ASC',
     [id]
   );
-  return {
-    ...test,
-    pdfPath: test.pdf_path,
-    sourcePdfPath: test.source_pdf_path,
-    topicId: test.topic_id,
-    answers: answers.map(a => ({
+  return mapPdfTestRow(
+    test,
+    answers.map(a => ({
       id: a.id,
       questionNumber: a.question_number,
       correctOption: a.correct_option
     }))
-  };
+  );
 }
 
 export async function savePdfTestAttempt(attempt: Omit<PdfTestAttempt, 'id'>) {
@@ -280,6 +452,15 @@ export async function savePdfTestAttempt(attempt: Omit<PdfTestAttempt, 'id'>) {
   const result = await db.execute(
     'INSERT INTO pdf_test_attempts (pdf_test_id, score, total_questions, duration_seconds, attempted_at) VALUES ($1, $2, $3, $4, $5)',
     [attempt.pdfTestId, attempt.score, attempt.totalQuestions, attempt.durationSeconds, attempt.attemptedAt]
+  );
+  return result.lastInsertId;
+}
+
+export async function saveTextTestAttempt(attempt: Omit<TextTestAttempt, 'id'>) {
+  const db = await getDb();
+  const result = await db.execute(
+    'INSERT INTO text_test_attempts (text_test_id, score, total_questions, duration_seconds, attempted_at) VALUES ($1, $2, $3, $4, $5)',
+    [attempt.textTestId, attempt.score, attempt.totalQuestions, attempt.durationSeconds, attempt.attemptedAt]
   );
   return result.lastInsertId;
 }
@@ -300,37 +481,19 @@ export async function savePdfMaterial(material: PdfMaterial) {
 
 export async function getPdfMaterialsByTopic(topicId: number): Promise<PdfMaterial[]> {
   const db = await getDb();
-  const materials = await db.select<any[]>('SELECT * FROM pdf_materials WHERE topic_id = $1 ORDER BY created_at DESC', [topicId]);
-  return materials.map(m => ({
-    id: m.id,
-    name: m.name,
-    pdfPath: m.pdf_path,
-    sourcePdfPath: m.source_pdf_path,
-    topicId: m.topic_id,
-    created_at: m.created_at,
-    last_opened_at: m.last_opened_at,
-    total_study_seconds: m.total_study_seconds ?? 0
-  }));
+  const materials = await db.select<PdfMaterialRow[]>('SELECT * FROM pdf_materials WHERE topic_id = $1 ORDER BY created_at DESC', [topicId]);
+  return materials.map(mapPdfMaterialRow);
 }
 
 export async function getAllPdfMaterials(): Promise<PdfMaterial[]> {
   const db = await getDb();
-  const materials = await db.select<any[]>('SELECT * FROM pdf_materials ORDER BY created_at DESC');
-  return materials.map(m => ({
-    id: m.id,
-    name: m.name,
-    pdfPath: m.pdf_path,
-    sourcePdfPath: m.source_pdf_path,
-    topicId: m.topic_id,
-    created_at: m.created_at,
-    last_opened_at: m.last_opened_at,
-    total_study_seconds: m.total_study_seconds ?? 0
-  }));
+  const materials = await db.select<PdfMaterialRow[]>('SELECT * FROM pdf_materials ORDER BY created_at DESC');
+  return materials.map(mapPdfMaterialRow);
 }
 
 export async function getPdfTestsByTopic(topicId: number): Promise<PdfTest[]> {
   const db = await getDb();
-  const tests = await db.select<any[]>(`
+  const tests = await db.select<PdfTestListRow[]>(`
     SELECT
       t.*,
       a.id AS last_attempt_id,
@@ -350,21 +513,7 @@ export async function getPdfTestsByTopic(topicId: number): Promise<PdfTest[]> {
     ORDER BY t.created_at DESC
   `, [topicId]);
 
-  return tests.map(t => ({
-    ...t,
-    pdfPath: t.pdf_path,
-    sourcePdfPath: t.source_pdf_path,
-    topicId: t.topic_id,
-    answers: [],
-    lastAttempt: t.last_attempt_id ? {
-      id: t.last_attempt_id,
-      pdfTestId: t.id,
-      score: t.last_score,
-      totalQuestions: t.last_total_questions,
-      durationSeconds: t.last_duration_seconds,
-      attemptedAt: t.last_attempted_at
-    } : null
-  }));
+  return tests.map(mapPdfTestListRow);
 }
 
 export async function markPdfMaterialOpened(id: number) {
@@ -387,13 +536,13 @@ export interface RecentTestAttempt {
 export async function getRecentTestAttempts(limit: number = 5): Promise<RecentTestAttempt[]> {
   const db = await getDb();
   
-  const pdfAttempts = await db.select<any[]>(`
+  const pdfAttempts = await db.select<RecentPdfAttemptRow[]>(`
     SELECT a.*, t.name as test_name
     FROM pdf_test_attempts a
     JOIN pdf_tests t ON a.pdf_test_id = t.id
   `);
   
-  const textAttempts = await db.select<any[]>(`
+  const textAttempts = await db.select<RecentTextAttemptRow[]>(`
     SELECT a.*, t.name as test_name
     FROM text_test_attempts a
     JOIN text_tests t ON a.text_test_id = t.id
@@ -428,23 +577,14 @@ export async function getRecentTestAttempts(limit: number = 5): Promise<RecentTe
 
 export async function getRecentMaterials(limit: number = 5): Promise<PdfMaterial[]> {
   const db = await getDb();
-  const materials = await db.select<any[]>(`
+  const materials = await db.select<PdfMaterialRow[]>(`
     SELECT * FROM pdf_materials 
     WHERE last_opened_at IS NOT NULL 
     ORDER BY last_opened_at DESC 
     LIMIT $1
   `, [limit]);
 
-  return materials.map(m => ({
-    id: m.id,
-    name: m.name,
-    pdfPath: m.pdf_path,
-    sourcePdfPath: m.source_pdf_path,
-    topicId: m.topic_id,
-    created_at: m.created_at,
-    last_opened_at: m.last_opened_at,
-    total_study_seconds: m.total_study_seconds ?? 0
-  }));
+  return materials.map(mapPdfMaterialRow);
 }
 
 export async function addMaterialStudyTime(id: number, seconds: number) {
@@ -462,31 +602,30 @@ export async function deletePdfMaterial(id: number) {
 
 export async function deletePdfTest(id: number) {
   const db = await getDb();
-  await db.execute('DELETE FROM pdf_answers WHERE pdf_test_id = $1', [id]);
-  await db.execute('DELETE FROM pdf_test_attempts WHERE pdf_test_id = $1', [id]);
-  await db.execute('DELETE FROM pdf_tests WHERE id = $1', [id]);
+  await runWriteBatch(async () => {
+    await db.execute('DELETE FROM pdf_answers WHERE pdf_test_id = $1', [id]);
+    await db.execute('DELETE FROM pdf_test_attempts WHERE pdf_test_id = $1', [id]);
+    await db.execute('DELETE FROM pdf_tests WHERE id = $1', [id]);
+  });
 }
 
 export async function deleteTopic(id: number) {
   const db = await getDb();
-  // Delete all tests under this topic (with their answers and attempts)
-  const tests = await db.select<any[]>('SELECT id FROM pdf_tests WHERE topic_id = $1', [id]);
-  for (const t of tests) {
-    await db.execute('DELETE FROM pdf_answers WHERE pdf_test_id = $1', [t.id]);
-    await db.execute('DELETE FROM pdf_test_attempts WHERE pdf_test_id = $1', [t.id]);
-    await db.execute('DELETE FROM pdf_tests WHERE id = $1', [t.id]);
-  }
-  // Delete all materials under this topic
-  await db.execute('DELETE FROM pdf_materials WHERE topic_id = $1', [id]);
-  
-  // Delete text tests
-  await db.execute('DELETE FROM options WHERE question_id IN (SELECT id FROM questions WHERE text_test_id IN (SELECT id FROM text_tests WHERE topic_id = $1))', [id]);
-  await db.execute('DELETE FROM questions WHERE text_test_id IN (SELECT id FROM text_tests WHERE topic_id = $1)', [id]);
-  await db.execute('DELETE FROM text_test_attempts WHERE text_test_id IN (SELECT id FROM text_tests WHERE topic_id = $1)', [id]);
-  await db.execute('DELETE FROM text_tests WHERE topic_id = $1', [id]);
+  await runWriteBatch(async () => {
+    const tests = await db.select<IdRow[]>('SELECT id FROM pdf_tests WHERE topic_id = $1', [id]);
+    for (const t of tests) {
+      await db.execute('DELETE FROM pdf_answers WHERE pdf_test_id = $1', [t.id]);
+      await db.execute('DELETE FROM pdf_test_attempts WHERE pdf_test_id = $1', [t.id]);
+      await db.execute('DELETE FROM pdf_tests WHERE id = $1', [t.id]);
+    }
 
-  // Delete the topic itself
-  await db.execute('DELETE FROM topics WHERE id = $1', [id]);
+    await db.execute('DELETE FROM pdf_materials WHERE topic_id = $1', [id]);
+    await db.execute('DELETE FROM options WHERE question_id IN (SELECT id FROM questions WHERE text_test_id IN (SELECT id FROM text_tests WHERE topic_id = $1))', [id]);
+    await db.execute('DELETE FROM questions WHERE text_test_id IN (SELECT id FROM text_tests WHERE topic_id = $1)', [id]);
+    await db.execute('DELETE FROM text_test_attempts WHERE text_test_id IN (SELECT id FROM text_tests WHERE topic_id = $1)', [id]);
+    await db.execute('DELETE FROM text_tests WHERE topic_id = $1', [id]);
+    await db.execute('DELETE FROM topics WHERE id = $1', [id]);
+  });
 }
 
 export async function updateTopicName(id: number, name: string) {
@@ -507,20 +646,23 @@ export async function updatePdfTestName(id: number, name: string) {
 export async function saveTextTest(test: TextTest) {
   const db = await getDb();
   try {
-    const result = await db.execute(
-      'INSERT INTO text_tests (name, topic_id) VALUES ($1, $2)',
-      [test.name, test.topicId]
-    );
-    const testId = result.lastInsertId;
-    
-    // Save all questions for this test
-    for (const q of test.questions) {
-      q.textTestId = testId;
-      q.topicId = test.topicId;
-      await saveQuestion(q);
-    }
-    
-    return testId;
+    return await runWriteBatch(async () => {
+      const result = await db.execute(
+        'INSERT INTO text_tests (name, topic_id) VALUES ($1, $2)',
+        [test.name, test.topicId]
+      );
+      const testId = result.lastInsertId;
+
+      for (const q of test.questions) {
+        await insertQuestion(db, {
+          ...q,
+          textTestId: testId,
+          topicId: test.topicId
+        });
+      }
+
+      return testId;
+    });
   } catch (error) {
     console.error('Failed to save Text test:', error);
     throw error;
@@ -529,9 +671,16 @@ export async function saveTextTest(test: TextTest) {
 
 export async function getAllTextTests(): Promise<TextTest[]> {
   const db = await getDb();
-  const tests = await db.select<any[]>(`
+  const tests = await db.select<TextTestListRow[]>(`
     SELECT
       t.*,
+      (
+        SELECT image_path
+        FROM questions
+        WHERE text_test_id = t.id AND image_path IS NOT NULL
+        ORDER BY id ASC
+        LIMIT 1
+      ) AS preview_image_path,
       a.id AS last_attempt_id,
       a.score AS last_score,
       a.total_questions AS last_total_questions,
@@ -548,31 +697,21 @@ export async function getAllTextTests(): Promise<TextTest[]> {
     ORDER BY t.created_at DESC
   `);
 
-  const result: TextTest[] = [];
-  for (const t of tests) {
-    result.push({
-      id: t.id,
-      name: t.name,
-      topicId: t.topic_id,
-      questions: [],
-      lastAttempt: t.last_attempt_id ? {
-        id: t.last_attempt_id,
-        textTestId: t.id,
-        score: t.last_score,
-        totalQuestions: t.last_total_questions,
-        durationSeconds: t.last_duration_seconds,
-        attemptedAt: t.last_attempted_at
-      } : null
-    });
-  }
-  return result;
+  return tests.map(mapTextTestListRow);
 }
 
 export async function getTextTestsByTopic(topicId: number): Promise<TextTest[]> {
   const db = await getDb();
-  const tests = await db.select<any[]>(`
+  const tests = await db.select<TextTestListRow[]>(`
     SELECT
       t.*,
+      (
+        SELECT image_path
+        FROM questions
+        WHERE text_test_id = t.id AND image_path IS NOT NULL
+        ORDER BY id ASC
+        LIMIT 1
+      ) AS preview_image_path,
       a.id AS last_attempt_id,
       a.score AS last_score,
       a.total_questions AS last_total_questions,
@@ -590,32 +729,17 @@ export async function getTextTestsByTopic(topicId: number): Promise<TextTest[]> 
     ORDER BY t.created_at DESC
   `, [topicId]);
 
-  const result: TextTest[] = [];
-  for (const t of tests) {
-    result.push({
-      id: t.id,
-      name: t.name,
-      topicId: t.topic_id,
-      questions: [],
-      lastAttempt: t.last_attempt_id ? {
-        id: t.last_attempt_id,
-        textTestId: t.id,
-        score: t.last_score,
-        totalQuestions: t.last_total_questions,
-        durationSeconds: t.last_duration_seconds,
-        attemptedAt: t.last_attempted_at
-      } : null
-    });
-  }
-  return result;
+  return tests.map(mapTextTestListRow);
 }
 
 export async function deleteTextTest(id: number) {
   const db = await getDb();
-  await db.execute('DELETE FROM options WHERE question_id IN (SELECT id FROM questions WHERE text_test_id = $1)', [id]);
-  await db.execute('DELETE FROM questions WHERE text_test_id = $1', [id]);
-  await db.execute('DELETE FROM text_test_attempts WHERE text_test_id = $1', [id]);
-  await db.execute('DELETE FROM text_tests WHERE id = $1', [id]);
+  await runWriteBatch(async () => {
+    await db.execute('DELETE FROM options WHERE question_id IN (SELECT id FROM questions WHERE text_test_id = $1)', [id]);
+    await db.execute('DELETE FROM questions WHERE text_test_id = $1', [id]);
+    await db.execute('DELETE FROM text_test_attempts WHERE text_test_id = $1', [id]);
+    await db.execute('DELETE FROM text_tests WHERE id = $1', [id]);
+  });
 }
 
 export async function updateTextTestName(id: number, name: string) {
@@ -625,21 +749,21 @@ export async function updateTextTestName(id: number, name: string) {
 
 export async function getTextTestById(id: number): Promise<TextTest | null> {
   const db = await getDb();
-  const tests = await db.select<any[]>('SELECT * FROM text_tests WHERE id = $1', [id]);
+  const tests = await db.select<TextTestRow[]>('SELECT * FROM text_tests WHERE id = $1', [id]);
   if (tests.length === 0) return null;
   const t = tests[0];
 
-  const rawQuestions = await db.select<any[]>('SELECT * FROM questions WHERE text_test_id = $1 ORDER BY created_at ASC', [id]);
+  const rawQuestions = await db.select<QuestionRow[]>('SELECT * FROM questions WHERE text_test_id = $1 ORDER BY created_at ASC', [id]);
   const questions: Question[] = [];
   for (const rq of rawQuestions) {
-    const rawOptions = await db.select<any[]>('SELECT * FROM options WHERE question_id = $1', [rq.id]);
+    const rawOptions = await db.select<OptionRow[]>('SELECT * FROM options WHERE question_id = $1', [rq.id]);
     questions.push({
       id: rq.id,
       text: rq.text,
       imagePath: rq.image_path,
       topicId: rq.topic_id,
       textTestId: rq.text_test_id,
-      options: await mapOptions(rawOptions)
+      options: mapOptions(rawOptions)
     });
   }
 

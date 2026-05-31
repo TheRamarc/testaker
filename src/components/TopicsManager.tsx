@@ -3,8 +3,82 @@ import { getAllTopics, Topic, getPdfMaterialsByTopic, getPdfTestsByTopic, PdfMat
 import { PdfTest } from '../lib/db';
 import { ConfirmDialog } from './ConfirmDialog';
 import { EditNameDialog } from './EditNameDialog';
+import { createImageObjectUrl, revokeObjectUrls } from '../lib/filePreview';
 
-type AppTest = (PdfTest | TextTest) & { type: 'pdf' | 'text' };
+type AppTest = (PdfTest & { type: 'pdf' }) | (TextTest & { type: 'text' });
+
+const TestImageThumbnail: React.FC<{ imagePath: string; label: string }> = ({ imagePath, label }) => {
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    let objectUrl: string | null = null;
+
+    createImageObjectUrl(imagePath)
+      .then(url => {
+        objectUrl = url;
+        if (isMounted) {
+          setPreviewUrl(url);
+        } else {
+          revokeObjectUrls([url]);
+        }
+      })
+      .catch(error => {
+        console.error('Failed to load test thumbnail:', error);
+      });
+
+    return () => {
+      isMounted = false;
+      if (objectUrl) revokeObjectUrls([objectUrl]);
+    };
+  }, [imagePath]);
+
+  if (!previewUrl) {
+    return (
+      <div className="w-16 h-16 shrink-0 rounded-xl bg-sky-50 border border-sky-200 flex items-center justify-center text-[9px] font-black text-zinc-400">
+        IMG
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={previewUrl}
+      alt={label}
+      className="w-16 h-16 shrink-0 rounded-xl object-cover border border-sky-200 bg-white"
+    />
+  );
+};
+
+function getTestPreviewImage(test: AppTest) {
+  return test.type === 'text' ? test.previewImagePath : null;
+}
+
+interface ItemActionsProps {
+  onEdit: (event: React.MouseEvent) => void;
+  onDelete: (event: React.MouseEvent) => void;
+}
+
+const ItemActions: React.FC<ItemActionsProps> = ({ onEdit, onDelete }) => (
+  <div className="flex items-center gap-1.5">
+    <button
+      type="button"
+      onClick={onEdit}
+      className="h-8 px-2.5 rounded-lg border border-sky-200 bg-white/90 text-zinc-600 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-200 text-[10px] font-black uppercase tracking-wider transition-colors shadow-sm"
+      title="Rename"
+    >
+      Edit
+    </button>
+    <button
+      type="button"
+      onClick={onDelete}
+      className="h-8 px-2.5 rounded-lg border border-red-200 bg-white/90 text-red-600 hover:border-red-300 hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-200 text-[10px] font-black uppercase tracking-wider transition-colors shadow-sm"
+      title="Delete"
+    >
+      Delete
+    </button>
+  </div>
+);
 
 interface TopicsManagerProps {
   onOpenMaterial?: (mat: PdfMaterial) => void;
@@ -281,7 +355,7 @@ export const TopicsManager: React.FC<TopicsManagerProps> = ({ onOpenMaterial, on
                       {filteredMaterials.map(mat => (
                         <div
                           key={mat.id}
-                          className="relative p-5 text-left bg-white hover:bg-sky-100 border border-sky-200 rounded-2xl transition-all group flex flex-col gap-3 h-full"
+                          className="relative p-5 text-left bg-white hover:bg-sky-50 border border-sky-200 hover:border-blue-200 rounded-xl transition-all group flex flex-col gap-3 h-full shadow-sm hover:shadow-md"
                         >
                           <button
                             onClick={() => handleOpenMaterial(mat)}
@@ -307,17 +381,11 @@ export const TopicsManager: React.FC<TopicsManagerProps> = ({ onOpenMaterial, on
                             </div>
                           </button>
                           {mat.id && (
-                            <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button
-                                onClick={(e) => { e.stopPropagation(); setPendingEdit({ type: 'material', id: mat.id!, name: mat.name }); }}
-                                className="w-6 h-6 flex items-center justify-center rounded-lg bg-sky-200/50 hover:bg-sky-200 text-zinc-300 text-xs font-black"
-                                title="Rename material"
-                              >✎</button>
-                              <button
-                                onClick={(e) => handleDeleteMaterial(e, mat.id!, mat.name)}
-                                className="w-6 h-6 flex items-center justify-center rounded-lg bg-red-500/10 hover:bg-red-500/30 text-red-600 text-xs font-black"
-                                title="Delete material"
-                              >✕</button>
+                            <div className="mt-3 flex justify-end">
+                              <ItemActions
+                                onEdit={(e) => { e.stopPropagation(); setPendingEdit({ type: 'material', id: mat.id!, name: mat.name }); }}
+                                onDelete={(e) => handleDeleteMaterial(e, mat.id!, mat.name)}
+                              />
                             </div>
                           )}
                         </div>
@@ -333,50 +401,50 @@ export const TopicsManager: React.FC<TopicsManagerProps> = ({ onOpenMaterial, on
                       Tests
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {filteredTests.map(test => (
+                      {filteredTests.map(test => {
+                        const previewImage = getTestPreviewImage(test);
+                        return (
                         <div
                           key={`${test.type}-${test.id}`}
-                          className="relative p-5 text-left bg-white hover:bg-sky-100 border border-sky-200 rounded-2xl transition-all group flex flex-col gap-3 h-full"
+                          className="relative p-5 text-left bg-white hover:bg-sky-50 border border-sky-200 hover:border-blue-200 rounded-xl transition-all group flex flex-col gap-3 h-full shadow-sm hover:shadow-md"
                         >
                           <button
                             onClick={() => onOpenTest && test.id && onOpenTest(test.id, test.type)}
-                            className="w-full text-left flex flex-col gap-1 flex-1"
+                            className="w-full text-left flex gap-4 flex-1"
                           >
-                            <div className="w-full flex justify-between items-start gap-4">
-                              <h4 className="text-zinc-900 font-bold text-lg group-hover:text-sky-600 transition-colors line-clamp-2">
-                                {test.name}
-                                <span className={`ml-2 px-1.5 py-0.5 text-[8px] rounded uppercase font-black align-middle ${test.type === 'pdf' ? 'bg-sky-100 text-sky-600' : 'bg-indigo-100 text-indigo-600'}`}>
-                                  {test.type}
-                                </span>
-                              </h4>
-                              <span className="shrink-0 px-2 py-1 bg-sky-100 border border-sky-300 text-zinc-600 text-[9px] rounded-lg uppercase font-black">{getTopicName(test.topicId)}</span>
-                            </div>
-                            <div className="mt-auto w-full pt-2">
-                              {test.lastAttempt ? (
-                                <p className="text-zinc-600 text-[10px] uppercase tracking-widest font-bold">
-                                  Last: {formatDate(test.lastAttempt.attemptedAt)} • Score: {test.lastAttempt.score}/{test.lastAttempt.totalQuestions}
-                                </p>
-                              ) : (
-                                <p className="text-zinc-600 text-[10px] uppercase tracking-widest font-bold">Unattempted</p>
-                              )}
+                            {previewImage && <TestImageThumbnail imagePath={previewImage} label={test.name} />}
+                            <div className="min-w-0 flex-1 flex flex-col gap-1">
+                              <div className="w-full flex justify-between items-start gap-4">
+                                <h4 className="text-zinc-900 font-bold text-lg group-hover:text-sky-600 transition-colors line-clamp-2">
+                                  {test.name}
+                                  <span className={`ml-2 px-1.5 py-0.5 text-[8px] rounded uppercase font-black align-middle ${previewImage ? 'bg-emerald-100 text-emerald-700' : test.type === 'pdf' ? 'bg-sky-100 text-sky-600' : 'bg-indigo-100 text-indigo-600'}`}>
+                                    {previewImage ? 'photo' : test.type}
+                                  </span>
+                                </h4>
+                                <span className="shrink-0 px-2 py-1 bg-sky-100 border border-sky-300 text-zinc-600 text-[9px] rounded-lg uppercase font-black">{getTopicName(test.topicId)}</span>
+                              </div>
+                              <div className="mt-auto w-full pt-2">
+                                {test.lastAttempt ? (
+                                  <p className="text-zinc-600 text-[10px] uppercase tracking-widest font-bold">
+                                    Last: {formatDate(test.lastAttempt.attemptedAt)} • Score: {test.lastAttempt.score}/{test.lastAttempt.totalQuestions}
+                                  </p>
+                                ) : (
+                                  <p className="text-zinc-600 text-[10px] uppercase tracking-widest font-bold">Unattempted</p>
+                                )}
+                              </div>
                             </div>
                           </button>
                           {test.id && (
-                            <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button
-                                onClick={(e) => { e.stopPropagation(); setPendingEdit({ type: 'test', id: test.id!, name: test.name, testType: test.type }); }}
-                                className="w-6 h-6 flex items-center justify-center rounded-lg bg-sky-200/50 hover:bg-sky-200 text-zinc-300 text-xs font-black"
-                                title="Rename test"
-                              >✎</button>
-                              <button
-                                onClick={(e) => handleDeleteTest(e, test.id!, test.name, test.type)}
-                                className="w-6 h-6 flex items-center justify-center rounded-lg bg-red-500/10 hover:bg-red-500/30 text-red-600 text-xs font-black"
-                                title="Delete test"
-                              >✕</button>
+                            <div className="mt-3 flex justify-end">
+                              <ItemActions
+                                onEdit={(e) => { e.stopPropagation(); setPendingEdit({ type: 'test', id: test.id!, name: test.name, testType: test.type }); }}
+                                onDelete={(e) => handleDeleteTest(e, test.id!, test.name, test.type)}
+                              />
                             </div>
                           )}
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </section>
                 )}
@@ -402,7 +470,7 @@ export const TopicsManager: React.FC<TopicsManagerProps> = ({ onOpenMaterial, on
               >
                 <button
                   onClick={() => setSelectedTopic(topic)}
-                  className={`flex-1 text-left px-4 py-3 rounded-xl transition-all font-bold pr-16 ${
+                  className={`flex-1 text-left px-4 py-3 rounded-xl transition-all font-bold pr-36 ${
                     selectedTopic?.id === topic.id
                       ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
                       : 'bg-white text-zinc-600 hover:bg-sky-100 hover:text-zinc-900 border border-sky-200'
@@ -410,17 +478,11 @@ export const TopicsManager: React.FC<TopicsManagerProps> = ({ onOpenMaterial, on
                 >
                   {topic.name}
                 </button>
-                <div className="absolute right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setPendingEdit({ type: 'topic', id: topic.id, name: topic.name }); }}
-                    className="w-6 h-6 flex items-center justify-center rounded-lg bg-sky-200/50 hover:bg-sky-200 text-zinc-300 text-xs font-black"
-                    title="Rename topic"
-                  >✎</button>
-                  <button
-                    onClick={(e) => handleDeleteTopic(e, topic.id, topic.name)}
-                    className="w-6 h-6 flex items-center justify-center rounded-lg bg-red-500/10 hover:bg-red-500/30 text-red-600 text-xs font-black"
-                    title="Delete topic"
-                  >✕</button>
+                <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                  <ItemActions
+                    onEdit={(e) => { e.stopPropagation(); setPendingEdit({ type: 'topic', id: topic.id, name: topic.name }); }}
+                    onDelete={(e) => handleDeleteTopic(e, topic.id, topic.name)}
+                  />
                 </div>
               </div>
             ))
@@ -460,7 +522,7 @@ export const TopicsManager: React.FC<TopicsManagerProps> = ({ onOpenMaterial, on
                         {materials.map(mat => (
                           <div
                             key={mat.id}
-                            className="relative p-4 text-left bg-sky-50 border border-sky-200 rounded-2xl transition-all group"
+                            className="relative p-4 text-left bg-white hover:bg-sky-50 border border-sky-200 hover:border-blue-200 rounded-xl transition-all group shadow-sm hover:shadow-md"
                           >
                             <button
                               onClick={() => handleOpenMaterial(mat)}
@@ -481,17 +543,11 @@ export const TopicsManager: React.FC<TopicsManagerProps> = ({ onOpenMaterial, on
                               )}
                             </button>
                             {mat.id && (
-                              <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); setPendingEdit({ type: 'material', id: mat.id!, name: mat.name }); }}
-                                  className="w-6 h-6 flex items-center justify-center rounded-lg bg-sky-200/50 hover:bg-sky-200 text-zinc-300 text-xs font-black"
-                                  title="Rename material"
-                                >✎</button>
-                                <button
-                                  onClick={(e) => handleDeleteMaterial(e, mat.id!, mat.name)}
-                                  className="w-6 h-6 flex items-center justify-center rounded-lg bg-red-500/10 hover:bg-red-500/30 text-red-600 text-xs font-black"
-                                  title="Delete material"
-                                >✕</button>
+                              <div className="mt-3 flex justify-end">
+                                <ItemActions
+                                  onEdit={(e) => { e.stopPropagation(); setPendingEdit({ type: 'material', id: mat.id!, name: mat.name }); }}
+                                  onDelete={(e) => handleDeleteMaterial(e, mat.id!, mat.name)}
+                                />
                               </div>
                             )}
                           </div>
@@ -515,45 +571,45 @@ export const TopicsManager: React.FC<TopicsManagerProps> = ({ onOpenMaterial, on
                       </div>
                     ) : (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {tests.map(test => (
+                        {tests.map(test => {
+                          const previewImage = getTestPreviewImage(test);
+                          return (
                           <div
                             key={`${test.type}-${test.id}`}
-                            className="relative p-4 text-left bg-white hover:bg-sky-100 border border-sky-200 rounded-2xl transition-all group"
+                            className="relative p-4 text-left bg-white hover:bg-sky-50 border border-sky-200 hover:border-blue-200 rounded-xl transition-all group shadow-sm hover:shadow-md"
                           >
                             <button
                               onClick={() => onOpenTest && test.id && onOpenTest(test.id, test.type)}
-                              className="w-full text-left"
+                              className="w-full text-left flex gap-3"
                             >
-                              <h4 className="text-zinc-900 font-bold group-hover:text-sky-600 transition-colors pr-6">
-                                {test.name}
-                                <span className={`ml-2 px-1.5 py-0.5 text-[8px] rounded uppercase font-black align-middle ${test.type === 'pdf' ? 'bg-sky-100 text-sky-600' : 'bg-indigo-100 text-indigo-600'}`}>
-                                  {test.type}
-                                </span>
-                              </h4>
-                              {test.lastAttempt ? (
-                                <p className="text-zinc-600 text-[10px] mt-2 uppercase tracking-widest">
-                                  Last: {formatDate(test.lastAttempt.attemptedAt)} • Score: {test.lastAttempt.score}/{test.lastAttempt.totalQuestions}
-                                </p>
-                              ) : (
-                                <p className="text-zinc-600 text-[10px] mt-2 uppercase tracking-widest">Unattempted</p>
-                              )}
+                              {previewImage && <TestImageThumbnail imagePath={previewImage} label={test.name} />}
+                              <div className="min-w-0 flex-1">
+                                <h4 className="text-zinc-900 font-bold group-hover:text-sky-600 transition-colors pr-6">
+                                  {test.name}
+                                  <span className={`ml-2 px-1.5 py-0.5 text-[8px] rounded uppercase font-black align-middle ${previewImage ? 'bg-emerald-100 text-emerald-700' : test.type === 'pdf' ? 'bg-sky-100 text-sky-600' : 'bg-indigo-100 text-indigo-600'}`}>
+                                    {previewImage ? 'photo' : test.type}
+                                  </span>
+                                </h4>
+                                {test.lastAttempt ? (
+                                  <p className="text-zinc-600 text-[10px] mt-2 uppercase tracking-widest">
+                                    Last: {formatDate(test.lastAttempt.attemptedAt)} • Score: {test.lastAttempt.score}/{test.lastAttempt.totalQuestions}
+                                  </p>
+                                ) : (
+                                  <p className="text-zinc-600 text-[10px] mt-2 uppercase tracking-widest">Unattempted</p>
+                                )}
+                              </div>
                             </button>
                             {test.id && (
-                              <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); setPendingEdit({ type: 'test', id: test.id!, name: test.name, testType: test.type }); }}
-                                  className="w-6 h-6 flex items-center justify-center rounded-lg bg-sky-200/50 hover:bg-sky-200 text-zinc-300 text-xs font-black"
-                                  title="Rename test"
-                                >✎</button>
-                                <button
-                                  onClick={(e) => handleDeleteTest(e, test.id!, test.name, test.type)}
-                                  className="w-6 h-6 flex items-center justify-center rounded-lg bg-red-500/10 hover:bg-red-500/30 text-red-600 text-xs font-black"
-                                  title="Delete test"
-                                >✕</button>
+                              <div className="mt-3 flex justify-end">
+                                <ItemActions
+                                  onEdit={(e) => { e.stopPropagation(); setPendingEdit({ type: 'test', id: test.id!, name: test.name, testType: test.type }); }}
+                                  onDelete={(e) => handleDeleteTest(e, test.id!, test.name, test.type)}
+                                />
                               </div>
                             )}
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </section>
